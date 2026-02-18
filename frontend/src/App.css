@@ -1,16 +1,9 @@
+/* =========================
+   Base App Styles
+   ========================= */
 .App {
   text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+  font-family: Arial, sans-serif;
 }
 
 .App-header {
@@ -20,8 +13,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
+  font-size: calc(12px + 1.5vmin);
   color: white;
+  padding: 15px;
+}
+
+.App-logo {
+  height: 30vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
 }
 
 .App-link {
@@ -29,10 +34,114 @@
 }
 
 @keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* =========================
+   Container for pages
+   ========================= */
+.container {
+  width: 90%;
+  max-width: 500px; /* good for desktop & mobile */
+  margin: 0 auto;
+  padding: 15px;
+}
+
+/* =========================
+   Forms & Buttons
+   ========================= */
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  font-size: 16px;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+button {
+  background-color: #61dafb;
+  border: none;
+  color: #111;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+button:hover {
+  background-color: #21a1f1;
+  color: white;
+}
+
+/* =========================
+   Navbar Styles
+   ========================= */
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #111;
+  color: white;
+  position: relative;
+}
+
+nav h2 {
+  margin: 0;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  margin: 5px 10px;
+}
+
+nav .links {
+  display: flex;
+  gap: 20px;
+}
+
+nav .hamburger {
+  display: block;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+/* =========================
+   Mobile Responsiveness
+   ========================= */
+@media (min-width: 768px) {
+  /* Navbar desktop */
+  nav .desktop-links {
+    display: flex !important;
+    gap: 20px;
   }
-  to {
-    transform: rotate(360deg);
+
+  nav .hamburger {
+    display: none;
+  }
+
+  .container {
+    padding: 30px;
+  }
+
+  input, button {
+    font-size: 18px;
   }
 }
+
+/* Dashboard / Assessment Sections */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .sections {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
+

@@ -1,25 +1,34 @@
 const express = require("express");
-const mongoose = require("mongoose");
+const cors = require("cors");
 require("dotenv").config();
+
+const connectDB = require("./config/database");
 const authRoutes = require("./routes/authRoutes");
 const assessmentRoutes = require("./routes/assessmentRoutes");
-
-
-
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected Successfully"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+const testRoutes = require("./routes/testRoutes");
 
 const app = express();
 
+// Middleware
+app.use(cors());
 app.use(express.json());
+
+// Connect to MongoDB
+connectDB();
+
+// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/assessment", assessmentRoutes);
+app.use("/api/test", testRoutes);
 
+// Root route
 app.get("/", (req, res) => {
   res.send("LearnFlow API Running");
 });
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
+
