@@ -30,9 +30,12 @@ function Login() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div className="container"> {/* use container class for responsive layout */}
       <h2>Login</h2>
-      <form onSubmit={handleLogin}>
+      <form 
+        onSubmit={handleLogin} 
+        style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+      >
         <input
           type="email"
           placeholder="Email"
@@ -40,7 +43,6 @@ function Login() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <br /><br />
         <input
           type="password"
           placeholder="Password"
@@ -48,14 +50,14 @@ function Login() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <br /><br />
         <button type="submit">Login</button>
       </form>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
 
-      <br />
-      <Link to="/forgot-password">Forgot password?</Link>
+      <p style={{ marginTop: "15px" }}>
+        <Link to="/forgot-password">Forgot password?</Link>
+      </p>
     </div>
   );
 }

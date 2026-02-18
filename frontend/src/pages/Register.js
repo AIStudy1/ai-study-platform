@@ -38,9 +38,9 @@ function Register() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div className="container"> {/* use container class for responsiveness */}
       <h2>Register</h2>
-      <form onSubmit={handleRegister}>
+      <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <input
           type="email"
           placeholder="Email"
@@ -48,7 +48,6 @@ function Register() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <br /><br />
         <input
           type="password"
           placeholder="Password"
@@ -56,15 +55,15 @@ function Register() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <br /><br />
         <button type="submit">Register</button>
       </form>
 
-      {message && <p style={{ color: "green" }}>{message}</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {message && <p style={{ color: "green", marginTop: "10px" }}>{message}</p>}
+      {error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
 
-      <br />
-      <Link to="/login">Already have an account? Login</Link>
+      <p style={{ marginTop: "15px" }}>
+        <Link to="/login">Already have an account? Login</Link>
+      </p>
     </div>
   );
 }
