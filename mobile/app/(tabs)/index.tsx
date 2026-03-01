@@ -1,98 +1,243 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Login() {
+  const router = useRouter();
 
-export default function HomeScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [secure, setSecure] = useState(true);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.card}>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Hero Section */}
+        <View style={styles.hero}>
+          <View style={styles.logoBox}>
+            <Ionicons name="sparkles" size={40} color="white" />
+          </View>
+          <Text style={styles.logoText}>AiStudy</Text>
+        </View>
+
+        {/* Welcome Text */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeTitle}>Welcome back!</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Your learning quest continues.
+          </Text>
+        </View>
+
+        {/* Email */}
+        <View style={styles.inputContainer}>
+          <Ionicons name="mail-outline" size={20} color="#888" />
+          <TextInput
+            placeholder="name@example.com"
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
+
+        {/* Password */}
+        <View style={styles.inputContainer}>
+          <Ionicons name="lock-closed-outline" size={20} color="#888" />
+          <TextInput
+            placeholder="••••••••"
+            secureTextEntry={secure}
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={() => setSecure(!secure)}>
+            <Ionicons
+              name={secure ? "eye-off-outline" : "eye-outline"}
+              size={20}
+              color="#888"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Login Button */}
+        <TouchableOpacity
+          style={styles.loginButton}
+          onPress={() => router.push("/profile")}
+        >
+          <Text style={styles.loginButtonText}>Start Learning</Text>
+        </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.dividerContainer}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>Or continue with</Text>
+          <View style={styles.divider} />
+        </View>
+
+        {/* Social Buttons */}
+        <View style={styles.socialRow}>
+          <TouchableOpacity style={styles.socialButton}>
+            <Text style={styles.socialText}>Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.socialButton}>
+            <Text style={styles.socialText}>Apple</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>New to the quest?</Text>
+          <TouchableOpacity onPress={() => router.push("/signup")}>
+            <Text style={styles.footerLink}> Join now</Text>
+          </TouchableOpacity>
+        </View>
+
+      </View>
+    </ScrollView>
   );
 }
 
+const PRIMARY = "#9cd21f";
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flexGrow: 1,
+    backgroundColor: "#f7f8f6",
+    justifyContent: "center",
+    padding: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  card: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 24,
+    elevation: 6,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+
+  hero: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  logoBox: {
+    width: 70,
+    height: 70,
+    borderRadius: 16,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+
+  logoText: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: PRIMARY,
+  },
+
+  welcomeSection: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  welcomeTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+
+  welcomeSubtitle: {
+    color: "#666",
+    marginTop: 4,
+  },
+
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f3f0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+
+  input: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  loginButton: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    marginTop: 8,
+    elevation: 3,
+  },
+
+  loginButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+  },
+
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#ddd",
+  },
+
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    color: "#666",
+  },
+
+  socialRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  socialButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    marginHorizontal: 4,
+  },
+
+  socialText: {
+    fontWeight: "600",
+  },
+
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+
+  footerText: {
+    color: "#666",
+  },
+
+  footerLink: {
+    color: PRIMARY,
+    fontWeight: "bold",
   },
 });
