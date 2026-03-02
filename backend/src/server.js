@@ -1,15 +1,26 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
 import supabase from './config/supabaseClient.js';
-import courseRoutes from "./routes/courseRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
-
-const authRoutes = require("./routes/authRoutes");
-const assessmentRoutes = require("./routes/assessmentRoutes");
-const testRoutes = require("./routes/testRoutes");
+dotenv.config();
 
 const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use("/api/auth", authRoutes);
+
+// Root route
+app.get("/", (req, res) => {
+  res.send("LearnFlow API Running");
+});
+
+// Test DB route
 app.get("/test-db", async (req, res) => {
   const { data, error } = await supabase
     .from('users')
@@ -22,25 +33,15 @@ app.get("/test-db", async (req, res) => {
   res.json(data);
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const PORT = process.env.PORT || 8000;
 
-
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/assessment", assessmentRoutes);
-app.use("/api/test", testRoutes);
-app.use("/api/courses", courseRoutes);
-
-// Root route
-app.get("/", (req, res) => {
-  res.send("LearnFlow API Running");
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} ✅`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
 });
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+process.on('SIGINT', () => {
+  console.log('Shutting down server...');
+  server.close(() => process.exit(0));
 });
-
