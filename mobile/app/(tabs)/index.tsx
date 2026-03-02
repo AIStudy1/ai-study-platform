@@ -6,16 +6,40 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
+
+const PRIMARY = "#9cd21f";
 
 export default function Login() {
   const router = useRouter();
+  const { signIn } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [secure, setSecure] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signIn(email, password);
+      router.replace("/(tabs)/dashboard" as any);
+    } catch (error: any) {
+      Alert.alert("Login Failed", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -45,6 +69,8 @@ export default function Login() {
             style={styles.input}
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
           />
         </View>
 
@@ -70,9 +96,14 @@ export default function Login() {
         {/* Login Button */}
         <TouchableOpacity
           style={styles.loginButton}
-          onPress={() => router.push("/profile")}
+          onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.loginButtonText}>Start Learning</Text>
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.loginButtonText}>Start Learning</Text>
+          )}
         </TouchableOpacity>
 
         {/* Divider */}
@@ -87,7 +118,6 @@ export default function Login() {
           <TouchableOpacity style={styles.socialButton}>
             <Text style={styles.socialText}>Google</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.socialButton}>
             <Text style={styles.socialText}>Apple</Text>
           </TouchableOpacity>
@@ -96,7 +126,7 @@ export default function Login() {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>New to the quest?</Text>
-          <TouchableOpacity onPress={() => router.push("/signup")}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/signup" as any)}>
             <Text style={styles.footerLink}> Join now</Text>
           </TouchableOpacity>
         </View>
@@ -106,8 +136,6 @@ export default function Login() {
   );
 }
 
-const PRIMARY = "#9cd21f";
-
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
@@ -115,19 +143,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
-
   card: {
     backgroundColor: "white",
     borderRadius: 20,
     padding: 24,
     elevation: 6,
   },
-
   hero: {
     alignItems: "center",
     marginBottom: 20,
   },
-
   logoBox: {
     width: 70,
     height: 70,
@@ -137,28 +162,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 10,
   },
-
   logoText: {
     fontSize: 22,
     fontWeight: "bold",
     color: PRIMARY,
   },
-
   welcomeSection: {
     alignItems: "center",
     marginBottom: 20,
   },
-
   welcomeTitle: {
     fontSize: 22,
     fontWeight: "bold",
   },
-
   welcomeSubtitle: {
     color: "#666",
     marginTop: 4,
   },
-
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -168,12 +188,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 16,
   },
-
   input: {
     flex: 1,
     marginLeft: 10,
   },
-
   loginButton: {
     backgroundColor: PRIMARY,
     paddingVertical: 16,
@@ -182,36 +200,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
     elevation: 3,
   },
-
   loginButtonText: {
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
   },
-
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 24,
   },
-
   divider: {
     flex: 1,
     height: 1,
     backgroundColor: "#ddd",
   },
-
   dividerText: {
     marginHorizontal: 10,
     fontSize: 12,
     color: "#666",
   },
-
   socialRow: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
-
   socialButton: {
     flex: 1,
     borderWidth: 1,
@@ -221,21 +233,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 4,
   },
-
   socialText: {
     fontWeight: "600",
   },
-
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 24,
   },
-
   footerText: {
     color: "#666",
   },
-
   footerLink: {
     color: PRIMARY,
     fontWeight: "bold",

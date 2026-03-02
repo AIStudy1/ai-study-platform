@@ -17,13 +17,14 @@ function RootLayoutNav() {
     if (loading) return;
 
     const segment = segments[1] || "";
-    const authScreens = ["login", "signup", "index"];
-    const inAuthGroup = segments[0] === "(tabs)" && authScreens.indexOf(segment) !== -1;
+    const authScreens = ["index", "login", "signup"];
+    const isOnAuthScreen =
+      segments[0] !== "(tabs)" || authScreens.includes(segment);
 
-    if (!session && !inAuthGroup) {
+    if (!session && !isOnAuthScreen) {
       router.replace("/");
-    } else if (session && inAuthGroup) {
-      router.replace("/dashboard");
+    } else if (session && isOnAuthScreen) {
+      router.replace("/(tabs)/dashboard" as any);
     }
   }, [session, loading, segments]);
 
