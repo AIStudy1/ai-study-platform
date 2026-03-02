@@ -1,24 +1,39 @@
-const jwt = require("jsonwebtoken");
-require("dotenv").config();
+import supabase from "../config/supabaseClient.js";
 
-// Middleware to protect routes
-const protect = (req, res, next) => {
-  let token;
+export const authenticateUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
 
-  // Check if header has token
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decoded; // { id, role }
-      next();
-    } catch (error) {
-      return res.status(401).json({ message: "Not authorized, token failed" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
     }
-  } else {
-    return res.status(401).json({ message: "No token, authorization denied" });
+
+    const token = authHeader.split(" ")[1];
+
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+
+    req.user = {
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.user_metadata?.role || "student",
+    };
+
+    next();
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
-module.exports = { protect };
