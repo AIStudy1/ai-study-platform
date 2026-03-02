@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,7 +39,8 @@ export default function Signup() {
     try {
       setLoading(true);
       await signUp(email, password, fullName);
-      Alert.alert("Success", "Check your email to confirm your account!");
+      Alert.alert("Success", "Account created! You can now log in.");
+      router.replace("/");
     } catch (error: any) {
       Alert.alert("Signup Failed", error.message);
     } finally {
@@ -47,97 +49,98 @@ export default function Signup() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={PRIMARY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>AiStudy</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+      <ScrollView contentContainerStyle={styles.container}>
 
-      <View style={styles.progressSection}>
-        <View style={styles.progressTop}>
-          <Text style={styles.questText}>Your Quest Begins!</Text>
-          <Text style={styles.stepBadge}>Step 1 of 2</Text>
-        </View>
-        <View style={styles.progressBarBg}>
-          <View style={styles.progressBarFill} />
-        </View>
-        <Text style={styles.progressSub}>
-          Join the quest for knowledge and unlock your potential!
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.title}>Create Account</Text>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={18} color="#777" />
-          <TextInput
-            style={styles.input}
-            placeholder="Full Name"
-            placeholderTextColor="#999"
-            value={fullName}
-            onChangeText={setFullName}
-          />
+        {/* Logo */}
+        <View style={styles.logoRow}>
+          <Ionicons name="sparkles" size={28} color={PRIMARY} />
+          <Text style={styles.logoText}>AiStudy</Text>
         </View>
 
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={18} color="#777" />
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
+        <View style={styles.progressSection}>
+          <View style={styles.progressTop}>
+            <Text style={styles.questText}>Your Quest Begins!</Text>
+            <Text style={styles.stepBadge}>Step 1 of 2</Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View style={styles.progressBarFill} />
+          </View>
+          <Text style={styles.progressSub}>
+            Join the quest for knowledge and unlock your potential!
+          </Text>
         </View>
 
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={18} color="#777" />
-          <TextInput
-            style={styles.input}
-            placeholder="Create Password"
-            placeholderTextColor="#999"
-            secureTextEntry={secure}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setSecure(!secure)}>
-            <Ionicons
-              name={secure ? "eye-off-outline" : "eye-outline"}
-              size={18}
-              color="#777"
+        <View style={styles.card}>
+          <Text style={styles.title}>Create Account</Text>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={18} color="#777" />
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor="#999"
+              value={fullName}
+              onChangeText={setFullName}
             />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={18} color="#777" />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={18} color="#777" />
+            <TextInput
+              style={styles.input}
+              placeholder="Create Password"
+              placeholderTextColor="#999"
+              secureTextEntry={secure}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity onPress={() => setSecure(!secure)}>
+              <Ionicons
+                name={secure ? "eye-off-outline" : "eye-outline"}
+                size={18}
+                color="#777"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.terms}>
+            By signing up, you agree to our Terms of Service and Privacy Policy.
+          </Text>
+
+          <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>Sign Up</Text>
+                <Ionicons name="rocket-outline" size={18} color="white" />
+              </>
+            )}
           </TouchableOpacity>
+
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>Already have an account?</Text>
+            <TouchableOpacity onPress={() => router.replace("/")}>
+              <Text style={styles.loginText}> Login</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        <Text style={styles.terms}>
-          By signing up, you agree to our Terms of Service and Privacy Policy.
-        </Text>
-
-        <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text style={styles.buttonText}>Sign Up</Text>
-              <Ionicons name="rocket-outline" size={18} color="white" />
-            </>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.footerRow}>
-          <Text style={styles.footerText}>Already have an account?</Text>
-          <TouchableOpacity onPress={() => router.push("/login")}>
-            <Text style={styles.loginText}> Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -147,14 +150,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#f7f8f6",
     padding: 20,
   },
-  header: {
+  logoRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 24,
   },
-  headerTitle: {
-    fontSize: 18,
+  logoText: {
+    fontSize: 22,
     fontWeight: "bold",
     color: PRIMARY,
   },

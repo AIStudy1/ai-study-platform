@@ -9,8 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 
 const PRIMARY = "#9cd21f";
 
@@ -20,7 +20,6 @@ interface Message {
 }
 
 export default function AIAssistant() {
-  const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -38,7 +37,6 @@ export default function AIAssistant() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
 
-    // TODO: connect to your own AI backend here
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
@@ -52,113 +50,104 @@ export default function AIAssistant() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        {/* Title */}
+        <View style={styles.header}>
           <View style={styles.aiDot} />
           <Text style={styles.headerTitle}>AI Study Assistant</Text>
         </View>
-        <View style={{ width: 24 }} />
-      </View>
 
-      {/* Coming Soon Banner */}
-      <View style={styles.banner}>
-        <Ionicons name="construct-outline" size={16} color={PRIMARY} />
-        <Text style={styles.bannerText}>
-          AI features coming soon — we're building our own!
-        </Text>
-      </View>
+        {/* Coming Soon Banner */}
+        <View style={styles.banner}>
+          <Ionicons name="construct-outline" size={16} color={PRIMARY} />
+          <Text style={styles.bannerText}>
+            AI features coming soon — we're building our own!
+          </Text>
+        </View>
 
-      {/* Messages */}
-      <ScrollView
-        ref={scrollRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
-        onContentSizeChange={() =>
-          scrollRef.current?.scrollToEnd({ animated: true })
-        }
-      >
-        {messages.map((msg, index) => (
-          <View
-            key={index}
-            style={[
-              styles.messageBubble,
-              msg.role === "user" ? styles.userBubble : styles.assistantBubble,
-            ]}
-          >
-            {msg.role === "assistant" && (
-              <View style={styles.assistantIcon}>
-                <Ionicons name="sparkles" size={14} color="white" />
-              </View>
-            )}
+        {/* Messages */}
+        <ScrollView
+          ref={scrollRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          onContentSizeChange={() =>
+            scrollRef.current?.scrollToEnd({ animated: true })
+          }
+        >
+          {messages.map((msg, index) => (
             <View
+              key={index}
               style={[
-                styles.bubbleContent,
-                msg.role === "user"
-                  ? styles.userContent
-                  : styles.assistantContent,
+                styles.messageBubble,
+                msg.role === "user" ? styles.userBubble : styles.assistantBubble,
               ]}
             >
-              <Text
+              {msg.role === "assistant" && (
+                <View style={styles.assistantIcon}>
+                  <Ionicons name="sparkles" size={14} color="white" />
+                </View>
+              )}
+              <View
                 style={[
-                  styles.messageText,
+                  styles.bubbleContent,
                   msg.role === "user"
-                    ? styles.userText
-                    : styles.assistantText,
+                    ? styles.userContent
+                    : styles.assistantContent,
                 ]}
               >
-                {msg.content}
-              </Text>
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.role === "user"
+                      ? styles.userText
+                      : styles.assistantText,
+                  ]}
+                >
+                  {msg.content}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
 
-      {/* Input */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Ask me anything..."
-          placeholderTextColor="#999"
-          value={input}
-          onChangeText={setInput}
-          multiline
-        />
-        <TouchableOpacity
-          style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
-          onPress={sendMessage}
-          disabled={!input.trim()}
-        >
-          <Ionicons name="send" size={20} color="white" />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        {/* Input */}
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Ask me anything..."
+            placeholderTextColor="#999"
+            value={input}
+            onChangeText={setInput}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
+            onPress={sendMessage}
+            disabled={!input.trim()}
+          >
+            <Ionicons name="send" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f7f8f6",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     padding: 16,
     backgroundColor: "white",
     elevation: 2,
-  },
-  headerCenter: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 8,
   },
   aiDot: {

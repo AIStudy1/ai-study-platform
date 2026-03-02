@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -29,7 +30,7 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
-      const { data: connection, error: connectionError } = await supabase
+      const { data: connection } = await supabase
         .from("moodle_connections")
         .select("moodle_url, moodle_token, moodle_userid")
         .eq("user_id", user?.id)
@@ -63,161 +64,163 @@ export default function Dashboard() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome back 👋</Text>
-          <Text style={styles.email}>{user?.email}</Text>
-        </View>
-        <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.email?.charAt(0).toUpperCase()}
-            </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+      <ScrollView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Welcome back 👋</Text>
+            <Text style={styles.email}>{user?.email}</Text>
           </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Moodle Banner — show only if not connected */}
-      {!moodleConnected && !loading && (
-        <TouchableOpacity
-          style={styles.moodleBanner}
-          onPress={() => router.push("/(tabs)/moodle" as any)}
-        >
-          <View style={styles.moodleBannerLeft}>
-            <Ionicons name="school" size={28} color="white" />
-            <View style={styles.moodleBannerText}>
-              <Text style={styles.moodleBannerTitle}>Connect Moodle</Text>
-              <Text style={styles.moodleBannerSubtitle}>
-                Sync your university courses
+          <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user?.email?.charAt(0).toUpperCase()}
               </Text>
             </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Moodle Banner */}
+        {!moodleConnected && !loading && (
+          <TouchableOpacity
+            style={styles.moodleBanner}
+            onPress={() => router.push("/(tabs)/moodle" as any)}
+          >
+            <View style={styles.moodleBannerLeft}>
+              <Ionicons name="school" size={28} color="white" />
+              <View style={styles.moodleBannerText}>
+                <Text style={styles.moodleBannerTitle}>Connect Moodle</Text>
+                <Text style={styles.moodleBannerSubtitle}>
+                  Sync your university courses
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="arrow-forward" size={20} color="white" />
+          </TouchableOpacity>
+        )}
+
+        {/* Quick Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <MaterialIcons name="local-fire-department" size={24} color="#f97316" />
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Streak</Text>
           </View>
-          <Ionicons name="arrow-forward" size={20} color="white" />
-        </TouchableOpacity>
-      )}
+          <View style={styles.statCard}>
+            <MaterialIcons name="schedule" size={24} color={PRIMARY} />
+            <Text style={styles.statNumber}>0h</Text>
+            <Text style={styles.statLabel}>Study Time</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="task-alt" size={24} color="#22c55e" />
+            <Text style={styles.statNumber}>{courses.length}</Text>
+            <Text style={styles.statLabel}>Courses</Text>
+          </View>
+        </View>
 
-      {/* Quick Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <MaterialIcons name="local-fire-department" size={24} color="#f97316" />
-          <Text style={styles.statNumber}>0</Text>
-          <Text style={styles.statLabel}>Streak</Text>
-        </View>
-        <View style={styles.statCard}>
-          <MaterialIcons name="schedule" size={24} color={PRIMARY} />
-          <Text style={styles.statNumber}>0h</Text>
-          <Text style={styles.statLabel}>Study Time</Text>
-        </View>
-        <View style={styles.statCard}>
-          <MaterialIcons name="task-alt" size={24} color="#22c55e" />
-          <Text style={styles.statNumber}>{courses.length}</Text>
-          <Text style={styles.statLabel}>Courses</Text>
-        </View>
-      </View>
+        {/* My Courses */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Courses</Text>
+            {moodleConnected && (
+              <TouchableOpacity onPress={() => router.push("/(tabs)/moodle" as any)}>
+                <Text style={styles.seeAll}>Manage Moodle</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-      {/* My Courses */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Courses</Text>
-          {moodleConnected && (
-            <TouchableOpacity onPress={() => router.push("/(tabs)/moodle" as any)}>
-              <Text style={styles.seeAll}>Manage Moodle</Text>
-            </TouchableOpacity>
+          {loading ? (
+            <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 20 }} />
+          ) : !moodleConnected ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="school-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No courses yet</Text>
+              <Text style={styles.emptySubtext}>
+                Connect your Moodle to import your courses
+              </Text>
+              <TouchableOpacity
+                style={styles.connectButton}
+                onPress={() => router.push("/(tabs)/moodle" as any)}
+              >
+                <Text style={styles.connectButtonText}>Connect Moodle</Text>
+              </TouchableOpacity>
+            </View>
+          ) : courses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No courses found</Text>
+            </View>
+          ) : (
+            courses.map((course) => (
+              <TouchableOpacity
+                key={course.id}
+                style={styles.courseCard}
+                onPress={() => router.push("/(tabs)/course" as any)}
+              >
+                <View style={styles.courseIcon}>
+                  <MaterialIcons name="book" size={24} color={PRIMARY} />
+                </View>
+                <View style={styles.courseInfo}>
+                  <Text style={styles.courseTitle} numberOfLines={2}>
+                    {course.fullname}
+                  </Text>
+                  <Text style={styles.courseShort}>{course.shortname}</Text>
+                  {course.progress > 0 && (
+                    <>
+                      <View style={styles.progressBarBg}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${Math.min(course.progress, 100)}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.progressText}>
+                        {Math.round(course.progress)}% Complete
+                      </Text>
+                    </>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+            ))
           )}
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 20 }} />
-        ) : !moodleConnected ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="school-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No courses yet</Text>
-            <Text style={styles.emptySubtext}>
-              Connect your Moodle to import your courses
-            </Text>
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={styles.connectButton}
-              onPress={() => router.push("/(tabs)/moodle" as any)}
+              style={styles.actionCard}
+              onPress={() => router.push("/(tabs)/ai" as any)}
             >
-              <Text style={styles.connectButtonText}>Connect Moodle</Text>
+              <Ionicons name="sparkles" size={28} color={PRIMARY} />
+              <Text style={styles.actionLabel}>AI Assistant</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push("/(tabs)/explore" as any)}
+            >
+              <Ionicons name="compass" size={28} color={PRIMARY} />
+              <Text style={styles.actionLabel}>Explore</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push("/(tabs)/profile" as any)}
+            >
+              <Ionicons name="person" size={28} color={PRIMARY} />
+              <Text style={styles.actionLabel}>Profile</Text>
             </TouchableOpacity>
           </View>
-        ) : courses.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No courses found</Text>
-          </View>
-        ) : (
-          courses.map((course) => (
-            <TouchableOpacity
-              key={course.id}
-              style={styles.courseCard}
-              onPress={() => router.push("/(tabs)/course" as any)}
-            >
-              <View style={styles.courseIcon}>
-                <MaterialIcons name="book" size={24} color={PRIMARY} />
-              </View>
-              <View style={styles.courseInfo}>
-                <Text style={styles.courseTitle} numberOfLines={2}>
-                  {course.fullname}
-                </Text>
-                <Text style={styles.courseShort}>{course.shortname}</Text>
-                {course.progress > 0 && (
-                  <>
-                    <View style={styles.progressBarBg}>
-                      <View
-                        style={[
-                          styles.progressBarFill,
-                          { width: `${Math.min(course.progress, 100)}%` },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.progressText}>
-                      {Math.round(course.progress)}% Complete
-                    </Text>
-                  </>
-                )}
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(tabs)/ai" as any)}
-          >
-            <Ionicons name="sparkles" size={28} color={PRIMARY} />
-            <Text style={styles.actionLabel}>AI Assistant</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(tabs)/explore" as any)}
-          >
-            <Ionicons name="compass" size={28} color={PRIMARY} />
-            <Text style={styles.actionLabel}>Explore</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(tabs)/profile" as any)}
-          >
-            <Ionicons name="person" size={28} color={PRIMARY} />
-            <Text style={styles.actionLabel}>Profile</Text>
-          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Logout */}
-      <TouchableOpacity style={styles.logout} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Logout */}
+        <TouchableOpacity style={styles.logout} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

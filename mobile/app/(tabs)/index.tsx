@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -42,104 +43,105 @@ export default function Login() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.card}>
 
-        {/* Hero Section */}
-        <View style={styles.hero}>
-          <View style={styles.logoBox}>
-            <Ionicons name="sparkles" size={40} color="white" />
+          {/* Hero Section */}
+          <View style={styles.hero}>
+            <View style={styles.logoBox}>
+              <Ionicons name="sparkles" size={40} color="white" />
+            </View>
+            <Text style={styles.logoText}>AiStudy</Text>
           </View>
-          <Text style={styles.logoText}>AiStudy</Text>
-        </View>
 
-        {/* Welcome Text */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Welcome back!</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Your learning quest continues.
-          </Text>
-        </View>
+          {/* Welcome Text */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeTitle}>Welcome back!</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Your learning quest continues.
+            </Text>
+          </View>
 
-        {/* Email */}
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={20} color="#888" />
-          <TextInput
-            placeholder="name@example.com"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-
-        {/* Password */}
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={20} color="#888" />
-          <TextInput
-            placeholder="••••••••"
-            secureTextEntry={secure}
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setSecure(!secure)}>
-            <Ionicons
-              name={secure ? "eye-off-outline" : "eye-outline"}
-              size={20}
-              color="#888"
+          {/* Email */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color="#888" />
+            <TextInput
+              placeholder="name@example.com"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
+          </View>
+
+          {/* Password */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#888" />
+            <TextInput
+              placeholder="••••••••"
+              secureTextEntry={secure}
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity onPress={() => setSecure(!secure)}>
+              <Ionicons
+                name={secure ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#888"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.loginButtonText}>Start Learning</Text>
+            )}
           </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>Or continue with</Text>
+            <View style={styles.divider} />
+          </View>
+
+          {/* Social Buttons */}
+          <View style={styles.socialRow}>
+            <TouchableOpacity style={styles.socialButton}>
+              <Text style={styles.socialText}>Google</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.socialButton}>
+              <Text style={styles.socialText}>Apple</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>New to the quest?</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/signup" as any)}>
+              <Text style={styles.footerLink}> Join now</Text>
+            </TouchableOpacity>
+          </View>
+
         </View>
-
-        {/* Login Button */}
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.loginButtonText}>Start Learning</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>Or continue with</Text>
-          <View style={styles.divider} />
-        </View>
-
-        {/* Social Buttons */}
-        <View style={styles.socialRow}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text style={styles.socialText}>Google</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text style={styles.socialText}>Apple</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to the quest?</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/signup" as any)}>
-            <Text style={styles.footerLink}> Join now</Text>
-          </TouchableOpacity>
-        </View>
-
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#f7f8f6",
     justifyContent: "center",
     padding: 20,
   },
