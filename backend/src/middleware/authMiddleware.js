@@ -1,31 +1,39 @@
-const { createClient } = require("@supabase/supabase-js");
+import supabase from "../config/supabaseClient.js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-const protect = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
+export const authenticateUser = async (req, res, next) => {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const authHeader = req.headers.authorization;
 
-    if (error || !user) {
-      return res.status(401).json({ message: "Invalid or expired token" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
     }
 
-    req.user = user;
+    const token = authHeader.split(" ")[1];
+
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+
+    req.user = {
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.user_metadata?.role || "student",
+    };
+
     next();
-  } catch (err) {
-    res.status(401).json({ message: "Authentication failed" });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
-module.exports = { protect };
