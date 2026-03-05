@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import { useEffect } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -17,13 +18,14 @@ function RootLayoutNav() {
     if (loading) return;
 
     const segment = segments[1] || "";
-    const authScreens = ["login", "signup", "index"];
-    const inAuthGroup = segments[0] === "(tabs)" && authScreens.indexOf(segment) !== -1;
+    const authScreens = ["index", "login", "signup"];
+    const isOnAuthScreen =
+      segments[0] !== "(tabs)" || authScreens.includes(segment);
 
-    if (!session && !inAuthGroup) {
+    if (!session && !isOnAuthScreen) {
       router.replace("/");
-    } else if (session && inAuthGroup) {
-      router.replace("/dashboard");
+    } else if (session && isOnAuthScreen) {
+      router.replace("/(tabs)/dashboard" as any);
     }
   }, [session, loading, segments]);
 
@@ -40,8 +42,10 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

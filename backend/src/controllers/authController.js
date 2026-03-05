@@ -1,64 +1,92 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+import supabase from "../config/supabaseClient.js";
 
-// Register
-const register = async (req, res) => {
-  const { name, email, password, role } = req.body;
+/**
+ * Register user via Supabase Auth
+ * This creates the auth user and stores role metadata.
+ */
+export const register = async (req, res) => {
+  const { email, password, full_name, role } = req.body;
 
   try {
-    const userExists = await User.findOne({ email });
-    if (userExists)
-      return res.status(400).json({ message: "User already exists" });
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const user = await User.create({
-      name,
+    const { data, error } = await supabase.auth.signUp({
       email,
-      password: hashedPassword,
-      role: role || "student"
+      password,
+      options: {
+        data: {
+          full_name,
+          role: role || "student",
+        },
+      },
     });
 
-    res.status(201).json({ message: "User registered successfully" });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      user: data.user,
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
-// Login
-const login = async (req, res) => {
+
+/**
+ * Login via Supabase Auth
+ * Supabase returns access_token + session
+ */
+export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: "Invalid credentials" });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid credentials" });
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role, full_name")
+      .eq("id", data.user.id)
+      .single();
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      session: data.session,
+      user: {
+        ...data.user,
+        role: profile?.role || "student",         
+        full_name: profile?.full_name || data.user.user_metadata?.full_name || "",
+      },
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
-
-module.exports = { register, login };
+export const resetPassword = async (req, res) => {
+  const { email } = req.body;
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  if (error) return res.status(400).json({ success: false, message: error.message });
+  return res.status(200).json({ success: true, message: "Reset email sent" });
+};

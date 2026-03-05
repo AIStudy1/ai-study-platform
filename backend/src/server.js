@@ -1,10 +1,11 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import supabase from './config/supabaseClient.js';
+import authRoutes from "./routes/authRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
-const authRoutes = require("./routes/authRoutes");
-const assessmentRoutes = require("./routes/assessmentRoutes");
-const testRoutes = require("./routes/testRoutes");
+dotenv.config();
 
 const app = express();
 
@@ -14,17 +15,43 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/assessment", assessmentRoutes);
-app.use("/api/test", testRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Root route
 app.get("/", (req, res) => {
   res.send("LearnFlow API Running");
 });
 
-const PORT = process.env.PORT || 5000;
+// Test DB route
+app.get("/test-db", async (req, res) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*');
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json(data);
+});
+app.get("/test-users", async (req, res) => {
+  const { data, error, count } = await supabase
+    .from("users")
+    .select("*", { count: "exact" })
+    .eq("role", "student");
+  
+  res.json({ data, error, count });
 });
 
+const PORT = process.env.PORT || 8000;
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} ✅`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+process.on('SIGINT', () => {
+  console.log('Shutting down server...');
+  server.close(() => process.exit(0));
+});

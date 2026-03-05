@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { supabase } from "@/supabaseConfig";
@@ -45,7 +46,6 @@ export default function MoodleConnect() {
     try {
       setLoading(true);
 
-      // Step 1 - verify connection and get site info
       const siteResponse = await fetch(
         `${cleanUrl}/webservice/rest/server.php?wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json`
       );
@@ -59,7 +59,6 @@ export default function MoodleConnect() {
       setSiteName(siteData.sitename);
       setUserName(siteData.fullname);
 
-      // Step 2 - fetch enrolled courses
       const coursesResponse = await fetch(
         `${cleanUrl}/webservice/rest/server.php?wstoken=${token}&wsfunction=core_enrol_get_users_courses&moodlewsrestformat=json&userid=${siteData.userid}`
       );
@@ -69,7 +68,6 @@ export default function MoodleConnect() {
         setCourses(coursesData);
       }
 
-      // Step 3 - delete existing connection then insert fresh
       await supabase
         .from("moodle_connections")
         .delete()
@@ -100,147 +98,136 @@ export default function MoodleConnect() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={PRIMARY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Connect Moodle</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+      <ScrollView contentContainerStyle={styles.container}>
 
-      {/* Hero */}
-      <View style={styles.hero}>
-        <View style={styles.logoBox}>
-          <Ionicons name="school" size={40} color="white" />
-        </View>
-        <Text style={styles.heroTitle}>Link Your University</Text>
-        <Text style={styles.heroSubtitle}>
-          Connect your Moodle account to sync your courses automatically.
-        </Text>
-      </View>
-
-      {!connected ? (
-        <>
-          {/* How to get token */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>📋 How to get your token:</Text>
-            <Text style={styles.infoStep}>1. Log into your university Moodle</Text>
-            <Text style={styles.infoStep}>2. Click your profile picture</Text>
-            <Text style={styles.infoStep}>3. Go to Preferences → Security Keys</Text>
-            <Text style={styles.infoStep}>4. Copy the Moodle mobile web service token</Text>
+        {/* Hero */}
+        <View style={styles.hero}>
+          <View style={styles.logoBox}>
+            <Ionicons name="school" size={40} color="white" />
           </View>
+          <Text style={styles.heroTitle}>Link Your University</Text>
+          <Text style={styles.heroSubtitle}>
+            Connect your Moodle account to sync your courses automatically.
+          </Text>
+        </View>
 
-          {/* Form */}
-          <View style={styles.card}>
-            <Text style={styles.label}>University Moodle URL</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="globe-outline" size={18} color="#777" />
-              <TextInput
-                style={styles.input}
-                placeholder="https://moodle.youruniversity.com"
-                placeholderTextColor="#999"
-                value={moodleUrl}
-                onChangeText={setMoodleUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
+        {!connected ? (
+          <>
+            <View style={styles.infoBox}>
+              <Text style={styles.infoTitle}>📋 How to get your token:</Text>
+              <Text style={styles.infoStep}>1. Log into your university Moodle</Text>
+              <Text style={styles.infoStep}>2. Click your profile picture</Text>
+              <Text style={styles.infoStep}>3. Go to Preferences → Security Keys</Text>
+              <Text style={styles.infoStep}>4. Copy the Moodle mobile web service token</Text>
             </View>
 
-            <Text style={styles.label}>Your Moodle Token</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="key-outline" size={18} color="#777" />
-              <TextInput
-                style={styles.input}
-                placeholder="Paste your token here"
-                placeholderTextColor="#999"
-                value={token}
-                onChangeText={setToken}
-                autoCapitalize="none"
-              />
+            <View style={styles.card}>
+              <Text style={styles.label}>University Moodle URL</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="globe-outline" size={18} color="#777" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="https://moodle.youruniversity.com"
+                  placeholderTextColor="#999"
+                  value={moodleUrl}
+                  onChangeText={setMoodleUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+              </View>
+
+              <Text style={styles.label}>Your Moodle Token</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="key-outline" size={18} color="#777" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Paste your token here"
+                  placeholderTextColor="#999"
+                  value={token}
+                  onChangeText={setToken}
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleConnect}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <>
+                    <Ionicons name="link-outline" size={20} color="white" />
+                    <Text style={styles.buttonText}>Connect Moodle</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.successCard}>
+              <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+              <Text style={styles.successTitle}>Connected!</Text>
+              <Text style={styles.successSubtitle}>
+                {userName} • {siteName}
+              </Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Your Courses ({courses.length})
+              </Text>
+
+              {courses.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No courses found</Text>
+                </View>
+              ) : (
+                courses.map((course) => (
+                  <View key={course.id} style={styles.courseCard}>
+                    <View style={styles.courseIcon}>
+                      <MaterialIcons name="book" size={22} color={PRIMARY} />
+                    </View>
+                    <View style={styles.courseInfo}>
+                      <Text style={styles.courseTitle} numberOfLines={2}>
+                        {course.fullname}
+                      </Text>
+                      <Text style={styles.courseShort}>{course.shortname}</Text>
+                      {course.progress > 0 && (
+                        <>
+                          <View style={styles.progressBarBg}>
+                            <View
+                              style={[
+                                styles.progressBarFill,
+                                { width: `${course.progress}%` },
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.progressText}>
+                            {Math.round(course.progress)}% Complete
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                ))
+              )}
             </View>
 
             <TouchableOpacity
-              style={styles.button}
-              onPress={handleConnect}
-              disabled={loading}
+              style={styles.dashboardButton}
+              onPress={() => router.replace("/(tabs)/dashboard" as any)}
             >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <>
-                  <Ionicons name="link-outline" size={20} color="white" />
-                  <Text style={styles.buttonText}>Connect Moodle</Text>
-                </>
-              )}
+              <Text style={styles.dashboardButtonText}>Go to Dashboard</Text>
+              <Ionicons name="arrow-forward" size={20} color="white" />
             </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <>
-          {/* Success */}
-          <View style={styles.successCard}>
-            <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
-            <Text style={styles.successTitle}>Connected!</Text>
-            <Text style={styles.successSubtitle}>
-              {userName} • {siteName}
-            </Text>
-          </View>
-
-          {/* Courses */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Your Courses ({courses.length})
-            </Text>
-
-            {courses.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No courses found</Text>
-              </View>
-            ) : (
-              courses.map((course) => (
-                <View key={course.id} style={styles.courseCard}>
-                  <View style={styles.courseIcon}>
-                    <MaterialIcons name="book" size={22} color={PRIMARY} />
-                  </View>
-                  <View style={styles.courseInfo}>
-                    <Text style={styles.courseTitle} numberOfLines={2}>
-                      {course.fullname}
-                    </Text>
-                    <Text style={styles.courseShort}>{course.shortname}</Text>
-                    {course.progress > 0 && (
-                      <>
-                        <View style={styles.progressBarBg}>
-                          <View
-                            style={[
-                              styles.progressBarFill,
-                              { width: `${course.progress}%` },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.progressText}>
-                          {Math.round(course.progress)}% Complete
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-
-          {/* Go to Dashboard */}
-          <TouchableOpacity
-            style={styles.dashboardButton}
-            onPress={() => router.replace("/(tabs)/dashboard" as any)}
-          >
-            <Text style={styles.dashboardButtonText}>Go to Dashboard</Text>
-            <Ionicons name="arrow-forward" size={20} color="white" />
-          </TouchableOpacity>
-        </>
-      )}
-    </ScrollView>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -249,17 +236,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: "#f7f8f6",
     padding: 20,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
   },
   hero: {
     alignItems: "center",
