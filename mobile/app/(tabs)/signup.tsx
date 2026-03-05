@@ -23,11 +23,14 @@ export default function Signup() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [secure, setSecure] = useState(true);
+  const [secureConfirm, setSecureConfirm] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSignup = async () => {
-    if (!fullName || !email || !password) {
+    if (!fullName || !email || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill all fields");
       return;
     }
@@ -35,18 +38,57 @@ export default function Signup() {
       Alert.alert("Error", "Password must be at least 6 characters");
       return;
     }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
 
     try {
       setLoading(true);
       await signUp(email, password, fullName);
-      Alert.alert("Success", "Account created! You can now log in.");
-      router.replace("/");
+      setEmailSent(true);
     } catch (error: any) {
       Alert.alert("Signup Failed", error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Show email sent confirmation screen
+  if (emailSent) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+        <View style={styles.emailSentContainer}>
+          <View style={styles.emailSentIcon}>
+            <Ionicons name="mail" size={48} color={PRIMARY} />
+          </View>
+          <Text style={styles.emailSentTitle}>Check your email! 📧</Text>
+          <Text style={styles.emailSentSubtitle}>
+            We sent a verification link to:
+          </Text>
+          <Text style={styles.emailSentEmail}>{email}</Text>
+          <Text style={styles.emailSentNote}>
+            Click the link in the email to verify your account, then come back and log in.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={() => router.replace("/" as any)}
+          >
+            <Ionicons name="arrow-forward" size={18} color="white" />
+            <Text style={styles.loginButtonText}>Go to Login</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.resendButton}
+            onPress={() => setEmailSent(false)}
+          >
+            <Text style={styles.resendText}>Didn't receive it? Try again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
@@ -102,7 +144,7 @@ export default function Signup() {
             <Ionicons name="lock-closed-outline" size={18} color="#777" />
             <TextInput
               style={styles.input}
-              placeholder="Create Password"
+              placeholder="Create Password (min 6 chars)"
               placeholderTextColor="#999"
               secureTextEntry={secure}
               value={password}
@@ -117,16 +159,39 @@ export default function Signup() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={18} color="#777" />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="#999"
+              secureTextEntry={secureConfirm}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity onPress={() => setSecureConfirm(!secureConfirm)}>
+              <Ionicons
+                name={secureConfirm ? "eye-off-outline" : "eye-outline"}
+                size={18}
+                color="#777"
+              />
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.terms}>
             By signing up, you agree to our Terms of Service and Privacy Policy.
           </Text>
 
-          <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSignup}
+            disabled={loading}
+          >
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
               <>
-                <Text style={styles.buttonText}>Sign Up</Text>
+                <Text style={styles.buttonText}>Create Account</Text>
                 <Ionicons name="rocket-outline" size={18} color="white" />
               </>
             )}
@@ -170,9 +235,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  questText: {
-    fontWeight: "600",
-  },
+  questText: { fontWeight: "600" },
   stepBadge: {
     backgroundColor: PRIMARY + "20",
     color: PRIMARY,
@@ -194,10 +257,7 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: PRIMARY,
   },
-  progressSub: {
-    fontSize: 12,
-    color: "#666",
-  },
+  progressSub: { fontSize: 12, color: "#666" },
   card: {
     backgroundColor: "white",
     padding: 20,
@@ -246,11 +306,77 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 20,
   },
-  footerText: {
-    color: "#666",
-  },
+  footerText: { color: "#666" },
   loginText: {
     color: PRIMARY,
     fontWeight: "bold",
+  },
+  // Email sent screen
+  emailSentContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  emailSentIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: PRIMARY + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  emailSentTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  emailSentSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+  },
+  emailSentEmail: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: PRIMARY,
+    marginVertical: 8,
+    textAlign: "center",
+  },
+  emailSentNote: {
+    fontSize: 13,
+    color: "#999",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 32,
+    marginTop: 8,
+  },
+  loginButton: {
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+    width: "100%",
+    justifyContent: "center",
+  },
+  loginButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  resendButton: {
+    paddingVertical: 12,
+  },
+  resendText: {
+    color: PRIMARY,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

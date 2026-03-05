@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/supabaseConfig";
 
 const PRIMARY = "#9cd21f";
 
@@ -22,13 +23,13 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
-
     try {
       setLoading(true);
       await signIn(email, password);
@@ -37,6 +38,49 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = () => {
+    if (!email.trim()) {
+      Alert.alert(
+        "Forgot Password",
+        "Please enter your email address first, then tap Forgot Password.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Reset Password",
+      `Send a password reset link to:\n${email}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Reset Link",
+          onPress: async () => {
+            try {
+              setResetLoading(true);
+              const { error } = await supabase.auth.resetPasswordForEmail(
+                email.trim(),
+                {
+                  redirectTo: "aistudy://reset-password",
+                }
+              );
+              if (error) throw error;
+              Alert.alert(
+                "Email Sent! 📧",
+                "Check your inbox for the password reset link.",
+                [{ text: "OK" }]
+              );
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Could not send reset email");
+            } finally {
+              setResetLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -84,7 +128,24 @@ export default function Login() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        {/* Forgot Password */}
+        <TouchableOpacity
+          style={styles.forgotRow}
+          onPress={handleForgotPassword}
+          disabled={resetLoading}
+        >
+          {resetLoading ? (
+            <ActivityIndicator size="small" color={PRIMARY} />
+          ) : (
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLogin}
+          disabled={loading}
+        >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
@@ -94,7 +155,7 @@ export default function Login() {
 
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Don't have an account?</Text>
-          <TouchableOpacity onPress={() => router.push("/signup")}>
+          <TouchableOpacity onPress={() => router.push("/signup" as any)}>
             <Text style={styles.signupText}> Sign up</Text>
           </TouchableOpacity>
         </View>
@@ -156,6 +217,16 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
   },
+  forgotRow: {
+    alignItems: "flex-end",
+    marginBottom: 16,
+    marginTop: -6,
+  },
+  forgotText: {
+    color: PRIMARY,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   button: {
     backgroundColor: PRIMARY,
     paddingVertical: 16,
@@ -173,9 +244,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 20,
   },
-  footerText: {
-    color: "#666",
-  },
+  footerText: { color: "#666" },
   signupText: {
     color: PRIMARY,
     fontWeight: "bold",

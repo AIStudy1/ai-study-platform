@@ -16,7 +16,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
       }}
     >
-      {/* Visible tabs */}
+      <Tabs.Screen name="moodle-course" options={{ href: null }} />
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -60,6 +60,7 @@ export default function TabLayout() {
       <Tabs.Screen name="signup" options={{ href: null }} />
       <Tabs.Screen name="course" options={{ href: null }} />
       <Tabs.Screen name="moodle" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

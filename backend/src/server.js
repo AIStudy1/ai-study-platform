@@ -4,6 +4,12 @@ import dotenv from "dotenv";
 import supabase from './config/supabaseClient.js';
 import authRoutes from "./routes/authRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+<<<<<<< HEAD
+=======
+import aiCourseRoutes from "./routes/aiCourseRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+>>>>>>> feature/supabase-migration
 
 dotenv.config();
 
@@ -16,10 +22,16 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+<<<<<<< HEAD
+=======
+app.use("/api/ai-courses", aiCourseRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/user", userRoutes);
+>>>>>>> feature/supabase-migration
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("LearnFlow API Running");
+  res.send("LearnFlow API Running ✅");
 });
 
 // Test DB route
@@ -27,11 +39,7 @@ app.get("/test-db", async (req, res) => {
   const { data, error } = await supabase
     .from('users')
     .select('*');
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
+  if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 app.get("/test-users", async (req, res) => {
@@ -40,6 +48,14 @@ app.get("/test-users", async (req, res) => {
     .select("*", { count: "exact" })
     .eq("role", "student");
   
+  res.json({ data, error, count });
+});
+
+app.get("/test-users", async (req, res) => {
+  const { data, error, count } = await supabase
+    .from("users")
+    .select("*", { count: "exact" })
+    .eq("role", "student");
   res.json({ data, error, count });
 });
 
