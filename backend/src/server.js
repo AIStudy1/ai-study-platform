@@ -7,6 +7,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import aiCourseRoutes from "./routes/aiCourseRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai-courses", aiCourseRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Root route
 app.get("/", (req, res) => {
