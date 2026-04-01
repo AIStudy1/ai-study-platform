@@ -186,3 +186,28 @@ function timeAgo(dateStr) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
+export const getFeaturedCourses = async (req, res) => {
+  try {
+    const { data: courses, error } = await supabase
+      .from("courses")
+      .select(`id, title, description, category, level, lessons, duration, created_at, enrollments (id)`)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const formatted = (courses || []).map((c) => ({
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      category: c.category || "General",
+      level: c.level || "beginner",
+      lessons: c.lessons || 0,
+      duration: c.duration || null,
+      students: c.enrollments?.length || 0,
+    }));
+
+    return res.status(200).json({ success: true, data: formatted });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

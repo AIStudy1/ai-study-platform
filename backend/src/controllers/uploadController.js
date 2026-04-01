@@ -1,4 +1,5 @@
 import supabase from "../config/supabaseClient.js";
+import pdfParse from "pdf-parse";
 
 export const uploadFile = async (req, res) => {
   try {
@@ -33,11 +34,23 @@ export const uploadFile = async (req, res) => {
       .from("course-files")
       .getPublicUrl(fileName);
 
+    // Extract text if PDF
+    let extractedText = null;
+    if (file.mimetype === "application/pdf") {
+      try {
+        const parsed = await pdfParse(file.buffer);
+        extractedText = parsed.text;
+      } catch (parseError) {
+        console.error("PDF parse error:", parseError.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: "File uploaded successfully",
       url: urlData.publicUrl,
       path: fileName,
+      extractedText,
     });
 
   } catch (error) {

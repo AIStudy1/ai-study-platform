@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { apiCompleteChapter, apiSubmitQuiz, apiLogActivity } from "@/services/api";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { apiCompleteChapter, apiSubmitQuiz, apiLogActivity, apiGetCourse } from "@/services/api";
+import FileQuizModal from "@/components/FileQuizModal";
 
 const PRIMARY = "#9cd21f";
 
@@ -39,122 +40,77 @@ interface Course {
   chapters: Chapter[];
 }
 
-const MOCK_COURSE: Course = {
-  id: "1",
-  title: "Introduction to Cybersecurity",
-  subject: "Computer Science",
-  description:
-    "A complete beginner to advanced course on cybersecurity covering network security, ethical hacking, and more.",
-  total_chapters: 6,
-  completed_chapters: 2,
-  type: "ai",
-  chapters: [
-    {
-      id: "c1",
-      title: "What is Cybersecurity?",
-      duration: "30 min",
-      is_completed: true,
-      order_index: 1,
-      has_quiz: true,
-      quiz_id: "q1",
-      quiz_passed: true,
-      quiz_score: 90,
-    },
-    {
-      id: "c2",
-      title: "Network Fundamentals",
-      duration: "45 min",
-      is_completed: true,
-      order_index: 2,
-      has_quiz: true,
-      quiz_id: "q2",
-      quiz_passed: true,
-      quiz_score: 80,
-    },
-    {
-      id: "c3",
-      title: "Types of Cyber Threats",
-      duration: "40 min",
-      is_completed: false,
-      order_index: 3,
-      has_quiz: true,
-      quiz_id: "q3",
-      quiz_passed: false,
-      quiz_score: null,
-    },
-    {
-      id: "c4",
-      title: "Ethical Hacking Basics",
-      duration: "60 min",
-      is_completed: false,
-      order_index: 4,
-      has_quiz: true,
-      quiz_id: "q4",
-      quiz_passed: false,
-      quiz_score: null,
-    },
-    {
-      id: "c5",
-      title: "Cryptography & Encryption",
-      duration: "50 min",
-      is_completed: false,
-      order_index: 5,
-      has_quiz: true,
-      quiz_id: "q5",
-      quiz_passed: false,
-      quiz_score: null,
-    },
-    {
-      id: "c6",
-      title: "Final Project & Assessment",
-      duration: "90 min",
-      is_completed: false,
-      order_index: 6,
-      has_quiz: false,
-      quiz_id: null,
-      quiz_passed: false,
-      quiz_score: null,
-      is_assignment: true,
-    },
-  ],
-};
-
 type TabType = "chapters" | "quizzes" | "progress";
 
 export default function CourseDetail() {
   const router = useRouter();
+  const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const [activeTab, setActiveTab] = useState<TabType>("chapters");
-  const [course, setCourse] = useState<Course>(MOCK_COURSE);
+  const [course, setCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
   const [loadingChapter, setLoadingChapter] = useState<string | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState<string | null>(null);
+  const [quizModalVisible, setQuizModalVisible] = useState(false);
 
-  const completedChapters = course.chapters.filter((c) => c.is_completed).length;
-  const progressPercent = Math.round((completedChapters / course.chapters.length) * 100);
-  const passedQuizzes = course.chapters.filter((c) => c.has_quiz && c.quiz_passed).length;
-  const totalQuizzes = course.chapters.filter((c) => c.has_quiz).length;
-  const scoredChapters = course.chapters.filter(
-    (c) => c.quiz_score !== null && c.quiz_score > 0
-  );
-  const avgScore =
-    scoredChapters.length > 0
-      ? Math.round(
-          scoredChapters.reduce((acc, c) => acc + (c.quiz_score ?? 0), 0) /
-            scoredChapters.length
-        )
-      : 0;
+  useEffect(() => {
+    if (courseId) fetchCourse();
+  }, [courseId]);
+
+  const fetchCourse = async () => {
+    try {
+      setLoading(true);
+      const res = await apiGetCourse(courseId!);
+      const data = res.data;
+
+      // Normalize chapters
+      const chapters: Chapter[] = (data.chapters || []).map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        duration: c.duration || "30 min",
+        is_completed: c.is_completed || false,
+        order_index: c.order_index,
+        has_quiz: c.quizzes && c.quizzes.length > 0,
+        quiz_id: c.quizzes?.[0]?.id || null,
+        quiz_passed: c.quizzes?.[0]?.passed || false,
+        quiz_score: c.quizzes?.[0]?.score || null,
+        is_assignment: c.is_assignment || false,
+      }));
+
+      setCourse({
+        id: data.id,
+        title: data.title,
+        subject: data.subject,
+        description: data.description,
+        total_chapters: data.total_chapters,
+        completed_chapters: data.completed_chapters,
+        type: data.type || "ai",
+        chapters,
+      });
+    } catch (error: any) {
+      Alert.alert("Error", "Could not load course. Please try again.");
+      router.back();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCompleteChapter = async (chapterId: string, chapterTitle: string) => {
+    if (!course) return;
     try {
       setLoadingChapter(chapterId);
       await apiCompleteChapter(course.id, chapterId);
       await apiLogActivity("chapter_completed", `Completed chapter: ${chapterTitle} ✅`);
-      setCourse((prev) => ({
-        ...prev,
-        completed_chapters: prev.completed_chapters + 1,
-        chapters: prev.chapters.map((c) =>
-          c.id === chapterId ? { ...c, is_completed: true } : c
-        ),
-      }));
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              completed_chapters: prev.completed_chapters + 1,
+              chapters: prev.chapters.map((c) =>
+                c.id === chapterId ? { ...c, is_completed: true } : c
+              ),
+            }
+          : prev
+      );
       Alert.alert("Chapter Complete! 🎉", "Great job! Keep going!");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Could not mark chapter as complete");
@@ -163,11 +119,8 @@ export default function CourseDetail() {
     }
   };
 
-  const submitQuizScore = async (
-    quizId: string,
-    chapterId: string,
-    score: number
-  ) => {
+  const submitQuizScore = async (quizId: string, chapterId: string, score: number) => {
+    if (!course) return;
     try {
       setLoadingQuiz(quizId);
       await apiSubmitQuiz(course.id, quizId, score);
@@ -176,14 +129,18 @@ export default function CourseDetail() {
         passed ? "quiz_passed" : "quiz_failed",
         `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
       );
-      setCourse((prev) => ({
-        ...prev,
-        chapters: prev.chapters.map((c) =>
-          c.id === chapterId
-            ? { ...c, quiz_score: score as number | null, quiz_passed: passed }
-            : c
-        ),
-      }));
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: prev.chapters.map((c) =>
+                c.id === chapterId
+                  ? { ...c, quiz_score: score, quiz_passed: passed }
+                  : c
+              ),
+            }
+          : prev
+      );
       Alert.alert(
         passed ? "Quiz Passed! 🎉" : "Quiz Failed 😔",
         passed
@@ -224,6 +181,32 @@ export default function CourseDetail() {
     ]);
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.loadingText}>Loading course...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!course) return null;
+
+  const completedChapters = course.chapters.filter((c) => c.is_completed).length;
+  const progressPercent = Math.round((completedChapters / course.chapters.length) * 100);
+  const passedQuizzes = course.chapters.filter((c) => c.has_quiz && c.quiz_passed).length;
+  const totalQuizzes = course.chapters.filter((c) => c.has_quiz).length;
+  const scoredChapters = course.chapters.filter((c) => c.quiz_score !== null && c.quiz_score > 0);
+  const avgScore =
+    scoredChapters.length > 0
+      ? Math.round(
+          scoredChapters.reduce((acc, c) => acc + (c.quiz_score ?? 0), 0) /
+            scoredChapters.length
+        )
+      : 0;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
       {/* Header */}
@@ -234,7 +217,13 @@ export default function CourseDetail() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           Course Detail
         </Text>
-        <View style={{ width: 36 }} />
+        {/* Quiz from file button */}
+        <TouchableOpacity
+          style={styles.quizFromFileBtn}
+          onPress={() => setQuizModalVisible(true)}
+        >
+          <Ionicons name="document-text-outline" size={20} color={PRIMARY} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.container}>
@@ -291,6 +280,23 @@ export default function CourseDetail() {
             </View>
           </View>
         </View>
+
+        {/* Upload file banner */}
+        <TouchableOpacity
+          style={styles.uploadBanner}
+          onPress={() => setQuizModalVisible(true)}
+        >
+          <View style={styles.uploadBannerLeft}>
+            <Ionicons name="document-text-outline" size={24} color={PRIMARY} />
+            <View>
+              <Text style={styles.uploadBannerTitle}>Quiz from your notes</Text>
+              <Text style={styles.uploadBannerSubtitle}>
+                Upload a PDF and AI generates a quiz
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={PRIMARY} />
+        </TouchableOpacity>
 
         {/* Tabs */}
         <View style={styles.tabs}>
@@ -420,18 +426,24 @@ export default function CourseDetail() {
                       <Text style={styles.quizScore}>Score: {chapter.quiz_score}%</Text>
                     ) : (
                       <Text style={styles.quizLocked}>
-                        {chapter.is_completed ? "Tap to attempt quiz" : "Complete chapter first"}
+                        {chapter.is_completed
+                          ? "Tap to attempt quiz"
+                          : "Complete chapter first"}
                       </Text>
                     )}
                   </View>
                   <View style={styles.quizRight}>
                     {chapter.quiz_passed ? (
                       <View style={[styles.doneBadge, { backgroundColor: "#22c55e20" }]}>
-                        <Text style={[styles.doneBadgeText, { color: "#22c55e" }]}>Passed</Text>
+                        <Text style={[styles.doneBadgeText, { color: "#22c55e" }]}>
+                          Passed
+                        </Text>
                       </View>
                     ) : chapter.quiz_score !== null ? (
                       <View style={[styles.doneBadge, { backgroundColor: "#ef444420" }]}>
-                        <Text style={[styles.doneBadgeText, { color: "#ef4444" }]}>Failed</Text>
+                        <Text style={[styles.doneBadgeText, { color: "#ef4444" }]}>
+                          Failed
+                        </Text>
                       </View>
                     ) : (
                       <Ionicons name="lock-closed" size={18} color="#ccc" />
@@ -447,7 +459,9 @@ export default function CourseDetail() {
           <View style={styles.section}>
             <View style={styles.summaryRow}>
               <View style={[styles.summaryCard, { backgroundColor: PRIMARY + "15" }]}>
-                <Text style={[styles.summaryNumber, { color: PRIMARY }]}>{progressPercent}%</Text>
+                <Text style={[styles.summaryNumber, { color: PRIMARY }]}>
+                  {progressPercent}%
+                </Text>
                 <Text style={styles.summaryLabel}>Completed</Text>
               </View>
               <View style={[styles.summaryCard, { backgroundColor: "#8b5cf615" }]}>
@@ -517,11 +531,19 @@ export default function CourseDetail() {
           </View>
         )}
       </ScrollView>
+
+      {/* File Quiz Modal */}
+      <FileQuizModal
+        visible={quizModalVisible}
+        onClose={() => setQuizModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { marginTop: 12, fontSize: 14, color: "#999" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -545,6 +567,14 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     marginHorizontal: 8,
+  },
+  quizFromFileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY + "20",
+    alignItems: "center",
+    justifyContent: "center",
   },
   container: { flex: 1, backgroundColor: "#f7f8f6" },
   hero: {
@@ -586,7 +616,7 @@ const styles = StyleSheet.create({
   progressCard: {
     backgroundColor: "white",
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderRadius: 16,
     padding: 16,
     elevation: 1,
@@ -608,6 +638,21 @@ const styles = StyleSheet.create({
   progressStats: { flexDirection: "row", justifyContent: "space-around" },
   progressStat: { flexDirection: "row", alignItems: "center", gap: 6 },
   progressStatText: { fontSize: 13, color: "#666" },
+  uploadBanner: {
+    backgroundColor: PRIMARY + "15",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: PRIMARY + "30",
+  },
+  uploadBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  uploadBannerTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
+  uploadBannerSubtitle: { fontSize: 12, color: "#666", marginTop: 2 },
   tabs: {
     flexDirection: "row",
     marginHorizontal: 16,

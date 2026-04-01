@@ -19,5 +19,6 @@ router.get("/students", getStudents);
 router.get("/course-distribution", getCourseDistribution);
 router.get("/weekly-signups", getWeeklySignups);
 router.get("/recent-activity", getRecentActivity);
+router.get("/featured-courses", getFeaturedCourses);
 
 export default router;

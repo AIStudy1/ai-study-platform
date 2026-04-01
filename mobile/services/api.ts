@@ -1,6 +1,7 @@
 import { supabase } from "@/supabaseConfig";
 
-const BACKEND_URL = "http://192.168.1.193:8000";
+const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
+
 
 // Helper to get the auth token from Supabase session
 const getToken = async (): Promise<string | null> => {
@@ -82,3 +83,37 @@ export const apiUpdateGoal = (goal_minutes: number) =>
 
 export const apiAddStudyProgress = (minutes: number) =>
   authRequest("POST", "/api/user/goal/progress", { minutes });
+export const apiChatWithAI = (message: string, history: { role: string; content: string }[]) =>
+  authRequest("POST", "/api/ai/chat", { message, history });
+
+export const apiGenerateCourse = (topic: string, level = "beginner") =>
+  authRequest("POST", "/api/ai/generate-course", { topic, level });
+export const apiGenerateQuizFromFile = (fileText: string, fileName: string) =>
+  authRequest("POST", "/api/ai/quiz-from-file", { fileText, fileName });
+
+export const apiSaveDiagnosticResult = (subject: string, score: number, total: number, fileName: string) =>
+  authRequest("POST", "/api/ai/save-diagnostic", { subject, score, total, fileName });
+
+export const apiUploadFile = async (fileUri: string, fileName: string, mimeType: string) => {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const formData = new FormData();
+  formData.append("file", {
+    uri: fileUri,
+    name: fileName,
+    type: mimeType,
+  } as any);
+
+  const response = await fetch(`${BACKEND_URL}/api/upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!data.success) throw new Error(data.message);
+  return data;
+};

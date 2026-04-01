@@ -17,7 +17,8 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
-import { supabase } from "@/supabaseConfig";
+import { apiChatWithAI, apiGenerateCourse } from "@/services/api";
+import FileQuizModal from "@/components/FileQuizModal";
 
 const PRIMARY = "#9cd21f";
 
@@ -37,7 +38,7 @@ export default function AIAssistant() {
       id: "1",
       role: "assistant",
       content:
-        "Hi! I'm your AI study assistant 👋\n\nI can help you:\n• Generate a full course on any topic\n• Explain concepts from your materials\n• Create quizzes and study plans\n• Answer questions about your courses\n\nTry saying: 'Create a course on Cybersecurity' or upload a file!",
+        "Hi! I'm your AI study assistant 👋\n\nI can help you:\n• Generate a full course on any topic\n• Explain concepts from your materials\n• Create quizzes and study plans\n• Answer questions about your courses\n\nTry saying: 'Generate a course on Cybersecurity' or tap 📄 to upload a file and get a quiz!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -46,6 +47,7 @@ export default function AIAssistant() {
   const [sending, setSending] = useState(false);
   const [attachedFile, setAttachedFile] = useState<any>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [quizModalVisible, setQuizModalVisible] = useState(false);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -79,37 +81,68 @@ export default function AIAssistant() {
     setSending(true);
     scrollToBottom();
 
-    // Simulate AI response — replace with real API later
-    setTimeout(() => {
-      const response = getAIResponse(text);
+    try {
+      const history = messages
+        .filter((m) => !m.isLoading)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const lower = text.toLowerCase();
+      const isCourseRequest =
+        lower.includes("generate a course") ||
+        lower.includes("create a course") ||
+        lower.includes("course on") ||
+        lower.includes("course about");
+
+      if (isCourseRequest) {
+        const topic = text
+          .replace(/generate a course on|generate a course about|create a course on|create a course about|course on|course about/gi, "")
+          .trim();
+
+        const courseRes = await apiGenerateCourse(topic);
+        const course = courseRes.data;
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.isLoading
+              ? {
+                  ...m,
+                  content: `✅ Course created: ${course.title}\n\n${course.description}\n\n📚 ${course.chapters.length} chapters ready\n🧠 Quizzes included\n\nCheck your dashboard to start learning!`,
+                  isLoading: false,
+                }
+              : m
+          )
+        );
+      } else {
+        const res = await apiChatWithAI(text, history);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.isLoading ? { ...m, content: res.data.reply, isLoading: false } : m
+          )
+        );
+      }
+    } catch (error: any) {
       setMessages((prev) =>
         prev.map((m) =>
-          m.isLoading ? { ...m, content: response, isLoading: false } : m
+          m.isLoading
+            ? {
+                ...m,
+                content: "Sorry, something went wrong. Please try again.",
+                isLoading: false,
+              }
+            : m
         )
       );
+    } finally {
       setSending(false);
       scrollToBottom();
-    }, 1500);
-  };
-
-  const getAIResponse = (text: string): string => {
-    const lower = text.toLowerCase();
-    if (lower.includes("course") || lower.includes("learn") || lower.includes("teach")) {
-      return "Great! I can create a full course for you 🎓\n\nI'll generate:\n• Chapter by chapter content\n• Quizzes after each chapter\n• A study schedule\n• Progress tracking\n\nThis feature is coming very soon! For now, I can answer any questions about your subjects.";
     }
-    if (lower.includes("quiz") || lower.includes("test")) {
-      return "Quiz generation is coming soon! 📝\n\nI'll be able to create custom quizzes based on your course materials and track your scores automatically.";
-    }
-    if (lower.includes("schedule") || lower.includes("plan")) {
-      return "Smart scheduling is on the way! 📅\n\nTell me:\n• How many hours per day you can study\n• Your exam dates\n• Your current courses\n\nAnd I'll build a personalized study plan!";
-    }
-    return "Our AI is being built specifically for students like you! 🚀\n\nSoon I'll be able to:\n• Generate full courses from any topic\n• Analyze your uploaded materials\n• Create personalized study plans\n• Quiz you on any subject\n\nStay tuned — it's coming very soon!";
   };
 
   const pickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf",
+        type: [
+          "application/pdf",
           "application/vnd.ms-powerpoint",
           "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         ],
@@ -149,9 +182,7 @@ export default function AIAssistant() {
         Alert.alert("Permission needed", "Please allow camera access");
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
       if (!result.canceled && result.assets.length > 0) {
         setAttachedImage(result.assets[0].uri);
       }
@@ -196,7 +227,6 @@ export default function AIAssistant() {
       setIsRecording(false);
       await recording.stopAndUnloadAsync();
       setRecording(null);
-      // Voice transcription coming soon
       setInput("🎤 Voice message (transcription coming soon)");
     } catch (error) {
       Alert.alert("Error", "Could not stop recording");
@@ -213,23 +243,25 @@ export default function AIAssistant() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.aiDot} />
+            <View style={styles.aiDot}>
+              <Ionicons name="sparkles" size={18} color="white" />
+            </View>
             <View>
               <Text style={styles.headerTitle}>AI Study Assistant</Text>
-              <Text style={styles.headerSubtitle}>Powered by AiStudy</Text>
+              <Text style={styles.headerSubtitle}>Powered by LLaMA 3</Text>
             </View>
           </View>
-          <View style={styles.onlineBadge}>
-            <Text style={styles.onlineText}>Online</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.quizButton}
+              onPress={() => setQuizModalVisible(true)}
+            >
+              <Ionicons name="document-text-outline" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+            <View style={styles.onlineBadge}>
+              <Text style={styles.onlineText}>Online</Text>
+            </View>
           </View>
-        </View>
-
-        {/* Coming Soon Banner */}
-        <View style={styles.banner}>
-          <Ionicons name="construct-outline" size={14} color={PRIMARY} />
-          <Text style={styles.bannerText}>
-            Full AI features coming soon — course generation, quizzes & schedules!
-          </Text>
         </View>
 
         {/* Messages */}
@@ -258,7 +290,6 @@ export default function AIAssistant() {
                   msg.role === "user" ? styles.userContent : styles.assistantContent,
                 ]}
               >
-                {/* Attached image */}
                 {msg.image && (
                   <Image
                     source={{ uri: msg.image }}
@@ -267,25 +298,27 @@ export default function AIAssistant() {
                   />
                 )}
 
-                {/* Attached file */}
                 {msg.file && (
                   <View style={styles.fileAttachment}>
                     <MaterialIcons name="picture-as-pdf" size={18} color={PRIMARY} />
-                    <Text style={styles.fileName} numberOfLines={1}>{msg.file.name}</Text>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {msg.file.name}
+                    </Text>
                   </View>
                 )}
 
-                {/* Loading dots */}
                 {msg.isLoading ? (
                   <View style={styles.loadingDots}>
                     <ActivityIndicator size="small" color="#999" />
                     <Text style={styles.loadingText}>Thinking...</Text>
                   </View>
                 ) : (
-                  <Text style={[
-                    styles.messageText,
-                    msg.role === "user" ? styles.userText : styles.assistantText,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.messageText,
+                      msg.role === "user" ? styles.userText : styles.assistantText,
+                    ]}
+                  >
                     {msg.content}
                   </Text>
                 )}
@@ -294,7 +327,7 @@ export default function AIAssistant() {
           ))}
         </ScrollView>
 
-        {/* Attachments preview */}
+        {/* Attachment preview */}
         {(attachedFile || attachedImage) && (
           <View style={styles.attachmentPreview}>
             {attachedImage && (
@@ -324,33 +357,19 @@ export default function AIAssistant() {
 
         {/* Input Row */}
         <View style={styles.inputContainer}>
-          {/* Attach button */}
           <TouchableOpacity style={styles.iconButton} onPress={showAttachMenu}>
             <Ionicons name="attach" size={22} color="#666" />
           </TouchableOpacity>
 
-          {/* Text input */}
           <TextInput
-            style={{
-                flex: 1,
-                backgroundColor: "#f3f4f6",
-                borderRadius: 20,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: "#333",
-                maxHeight: 100,
-            }}
+            style={styles.input}
             placeholder="Ask me anything..."
             placeholderTextColor="#999"
             value={input}
             onChangeText={setInput}
             multiline
-            />
-           
-         
+          />
 
-          {/* Voice button */}
           <TouchableOpacity
             style={[styles.iconButton, isRecording && styles.recordingButton]}
             onPress={isRecording ? stopRecording : startRecording}
@@ -362,19 +381,23 @@ export default function AIAssistant() {
             />
           </TouchableOpacity>
 
-          {/* Send button */}
           <TouchableOpacity
             style={[
               styles.sendButton,
               (!input.trim() && !attachedFile && !attachedImage) && styles.sendButtonDisabled,
             ]}
             onPress={sendMessage}
-            disabled={!input.trim() && !attachedFile && !attachedImage || sending}
+            disabled={(!input.trim() && !attachedFile && !attachedImage) || sending}
           >
             <Ionicons name="send" size={18} color="white" />
           </TouchableOpacity>
         </View>
 
+        {/* File Quiz Modal */}
+        <FileQuizModal
+          visible={quizModalVisible}
+          onClose={() => setQuizModalVisible(false)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -391,6 +414,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   aiDot: {
     width: 36,
     height: 36,
@@ -401,6 +425,14 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: "bold", color: "#333" },
   headerSubtitle: { fontSize: 11, color: "#999" },
+  quizButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PRIMARY + "20",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   onlineBadge: {
     backgroundColor: "#22c55e20",
     paddingHorizontal: 10,
@@ -408,17 +440,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   onlineText: { fontSize: 12, color: "#22c55e", fontWeight: "bold" },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f9e8",
-    padding: 10,
-    paddingHorizontal: 16,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  bannerText: { fontSize: 12, color: "#555", flex: 1 },
   messagesContainer: { flex: 1, backgroundColor: "#f7f8f6" },
   messagesContent: { padding: 16, paddingBottom: 8 },
   messageBubble: {
