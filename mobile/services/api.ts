@@ -117,3 +117,8 @@ export const apiUploadFile = async (fileUri: string, fileName: string, mimeType:
   if (!data.success) throw new Error(data.message);
   return data;
 };
+export const apiAgentChat = (
+  agentId: string,
+  message: string,
+  history: { role: string; content: string }[] = []
+) => authRequest("POST", "/api/ai/agent-chat", { agentId, message, history });

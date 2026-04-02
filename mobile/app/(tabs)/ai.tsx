@@ -1,569 +1,346 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Modal,
+  TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  Image,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
-import { apiChatWithAI, apiGenerateCourse } from "@/services/api";
+import { Ionicons } from "@expo/vector-icons";
+import { apiAgentChat } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 
 const PRIMARY = "#9cd21f";
+
+const AGENTS = [
+  {
+    id: "tutor",
+    name: "Tutor",
+    emoji: "🎓",
+    tagline: "Explains anything",
+    description: "Ask me any academic question and I'll break it down clearly.",
+    color: "#9cd21f",
+    bg: "#f0f9e8",
+  },
+  {
+    id: "course_builder",
+    name: "Course Builder",
+    emoji: "📚",
+    tagline: "Build a full course",
+    description: "Tell me a topic and I'll generate a complete course with chapters and quizzes.",
+    color: "#3b82f6",
+    bg: "#eff6ff",
+  },
+  {
+    id: "goals",
+    name: "Goals Coach",
+    emoji: "🎯",
+    tagline: "Reach your dreams",
+    description: "Share your dream goal and I'll build a step-by-step roadmap to get there.",
+    color: "#8b5cf6",
+    bg: "#f5f3ff",
+  },
+  {
+    id: "career",
+    name: "Career Advisor",
+    emoji: "💼",
+    tagline: "Land your dream job",
+    description: "CV writing, interview prep, internship hunting — I've got you covered.",
+    color: "#f97316",
+    bg: "#fff7ed",
+  },
+  {
+    id: "wellness",
+    name: "Wellness Coach",
+    emoji: "🧘",
+    tagline: "Mind & balance",
+    description: "Feeling stressed or burned out? Let's talk and get you back on track.",
+    color: "#22c55e",
+    bg: "#f0fdf4",
+  },
+  {
+    id: "budget",
+    name: "Budget Advisor",
+    emoji: "💰",
+    tagline: "Smart with money",
+    description: "Student budget planning, saving tips and managing your finances.",
+    color: "#eab308",
+    bg: "#fefce8",
+  },
+];
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  file?: { name: string; type: string };
-  image?: string;
   isLoading?: boolean;
 }
 
-export default function AIAssistant() {
-  const scrollRef = useRef<ScrollView>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Hi! I'm your AI study assistant 👋\n\nI can help you:\n• Generate a full course on any topic\n• Explain concepts from your materials\n• Create quizzes and study plans\n• Answer questions about your courses\n\nTry saying: 'Generate a course on Cybersecurity' or tap 📄 to upload a file and get a quiz!",
-    },
-  ]);
+const WELCOME: Record<string, string> = {
+  tutor: "Hey! I'm your personal tutor 🎓\n\nAsk me anything — concepts, formulas, definitions, homework help. I'll explain it clearly.\n\nWhat are you studying today?",
+  course_builder: "Hi! I'm your Course Builder 📚\n\nTell me any topic and I'll generate a full course with chapters and quizzes.\n\nTry: 'Build a course on Machine Learning'",
+  goals: "Hey there! I'm your Goals Coach 🎯\n\nShare your big dream — whether it's a career, a skill, or a life goal — and I'll break it down into a clear roadmap.\n\nWhat's your dream?",
+  career: "Hello! I'm your Career Advisor 💼\n\nI can help you with CV writing, interview prep, internship hunting, and career planning.\n\nWhat's your field of study and what career are you aiming for?",
+  wellness: "Hi, I'm your Wellness Coach 🧘\n\nThis is a safe space. How are you feeling today? Are you stressed, overwhelmed, or just need someone to talk to?\n\nI'm here to listen and help.",
+  budget: "Hey! I'm your Budget Advisor 💰\n\nI'll help you manage your student finances — budgeting, saving, tracking expenses and making the most of your money.\n\nTell me about your current financial situation and I'll help you plan.",
+};
+
+export default function AIScreen() {
+  const [selectedAgent, setSelectedAgent] = useState<typeof AGENTS[0] | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [sending, setSending] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<any>(null);
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [quizModalVisible, setQuizModalVisible] = useState(false);
 
-  const generateId = () => Math.random().toString(36).substr(2, 9);
+  const genId = () => Math.random().toString(36).substr(2, 9);
 
-  const scrollToBottom = () => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  const openAgent = (agent: typeof AGENTS[0]) => {
+    setSelectedAgent(agent);
+    setMessages([{ id: "1", role: "assistant", content: WELCOME[agent.id] }]);
+    setInput("");
+  };
+
+  const closeAgent = () => {
+    setSelectedAgent(null);
+    setMessages([]);
+    setInput("");
   };
 
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text && !attachedFile && !attachedImage) return;
+    if (!text || !selectedAgent) return;
 
-    const userMessage: Message = {
-      id: generateId(),
-      role: "user",
-      content: text,
-      file: attachedFile ? { name: attachedFile.name, type: attachedFile.mimeType } : undefined,
-      image: attachedImage || undefined,
-    };
+    const userMsg: Message = { id: genId(), role: "user", content: text };
+    const loadingMsg: Message = { id: genId(), role: "assistant", content: "", isLoading: true };
 
-    const loadingMessage: Message = {
-      id: generateId(),
-      role: "assistant",
-      content: "",
-      isLoading: true,
-    };
-
-    setMessages((prev) => [...prev, userMessage, loadingMessage]);
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
     setInput("");
-    setAttachedFile(null);
-    setAttachedImage(null);
     setSending(true);
-    scrollToBottom();
 
     try {
       const history = messages
         .filter((m) => !m.isLoading)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const lower = text.toLowerCase();
-      const isCourseRequest =
-        lower.includes("generate a course") ||
-        lower.includes("create a course") ||
-        lower.includes("course on") ||
-        lower.includes("course about");
+      const res = await apiAgentChat(selectedAgent.id, text, history);
 
-      if (isCourseRequest) {
-        const topic = text
-          .replace(/generate a course on|generate a course about|create a course on|create a course about|course on|course about/gi, "")
-          .trim();
-
-        const courseRes = await apiGenerateCourse(topic);
-        const course = courseRes.data;
-
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.isLoading
-              ? {
-                  ...m,
-                  content: `✅ Course created: ${course.title}\n\n${course.description}\n\n📚 ${course.chapters.length} chapters ready\n🧠 Quizzes included\n\nCheck your dashboard to start learning!`,
-                  isLoading: false,
-                }
-              : m
-          )
-        );
-      } else {
-        const res = await apiChatWithAI(text, history);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.isLoading ? { ...m, content: res.data.reply, isLoading: false } : m
-          )
-        );
-      }
-    } catch (error: any) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.isLoading ? { ...m, content: res.data.reply, isLoading: false } : m
+        )
+      );
+    } catch {
       setMessages((prev) =>
         prev.map((m) =>
           m.isLoading
-            ? {
-                ...m,
-                content: "Sorry, something went wrong. Please try again.",
-                isLoading: false,
-              }
+            ? { ...m, content: "Sorry, something went wrong. Please try again.", isLoading: false }
             : m
         )
       );
     } finally {
       setSending(false);
-      scrollToBottom();
-    }
-  };
-
-  const pickFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          "application/pdf",
-          "application/vnd.ms-powerpoint",
-          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ],
-        copyToCacheDirectory: true,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        setAttachedFile(result.assets[0]);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Could not pick file");
-    }
-  };
-
-  const pickImage = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission needed", "Please allow access to your photos");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-      });
-      if (!result.canceled && result.assets.length > 0) {
-        setAttachedImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Could not pick image");
-    }
-  };
-
-  const takePhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission needed", "Please allow camera access");
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-      if (!result.canceled && result.assets.length > 0) {
-        setAttachedImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Could not open camera");
-    }
-  };
-
-  const showAttachMenu = () => {
-    Alert.alert("Attach", "Choose what to attach", [
-      { text: "📄 PDF or Document", onPress: pickFile },
-      { text: "🖼️ Photo from Gallery", onPress: pickImage },
-      { text: "📷 Take a Photo", onPress: takePhoto },
-      { text: "Cancel", style: "cancel" },
-    ]);
-  };
-
-  const startRecording = async () => {
-    try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission needed", "Please allow microphone access");
-        return;
-      }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
-      setIsRecording(true);
-    } catch (error) {
-      Alert.alert("Error", "Could not start recording");
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      if (!recording) return;
-      setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      setRecording(null);
-      setInput("🎤 Voice message (transcription coming soon)");
-    } catch (error) {
-      Alert.alert("Error", "Could not stop recording");
     }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.aiDot}>
-              <Ionicons name="sparkles" size={18} color="white" />
-            </View>
-            <View>
-              <Text style={styles.headerTitle}>AI Study Assistant</Text>
-              <Text style={styles.headerSubtitle}>Powered by LLaMA 3</Text>
-            </View>
-          </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.quizButton}
-              onPress={() => setQuizModalVisible(true)}
-            >
-              <Ionicons name="document-text-outline" size={20} color={PRIMARY} />
-            </TouchableOpacity>
-            <View style={styles.onlineBadge}>
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
-          </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>AI Agents</Text>
+          <Text style={styles.headerSubtitle}>Choose your AI assistant</Text>
+        </View>
+        <TouchableOpacity style={styles.quizBtn} onPress={() => setQuizModalVisible(true)}>
+          <Ionicons name="document-text-outline" size={20} color={PRIMARY} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.list}>
+        <View style={styles.banner}>
+          <Ionicons name="sparkles" size={18} color={PRIMARY} />
+          <Text style={styles.bannerText}>
+            6 specialized AI agents — each an expert at one thing
+          </Text>
         </View>
 
-        {/* Messages */}
-        <ScrollView
-          ref={scrollRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
-          onContentSizeChange={scrollToBottom}
-        >
-          {messages.map((msg) => (
-            <View
-              key={msg.id}
-              style={[
-                styles.messageBubble,
-                msg.role === "user" ? styles.userBubble : styles.assistantBubble,
-              ]}
-            >
-              {msg.role === "assistant" && (
-                <View style={styles.assistantIcon}>
-                  <Ionicons name="sparkles" size={14} color="white" />
+        {AGENTS.map((agent) => (
+          <TouchableOpacity key={agent.id} style={styles.card} onPress={() => openAgent(agent)}>
+            <View style={[styles.iconBox, { backgroundColor: agent.bg }]}>
+              <Text style={styles.emoji}>{agent.emoji}</Text>
+            </View>
+            <View style={styles.cardInfo}>
+              <View style={styles.nameRow}>
+                <Text style={styles.agentName}>{agent.name}</Text>
+                <View style={[styles.tag, { backgroundColor: agent.color + "20" }]}>
+                  <Text style={[styles.tagText, { color: agent.color }]}>{agent.tagline}</Text>
                 </View>
-              )}
-              <View
-                style={[
-                  styles.bubbleContent,
-                  msg.role === "user" ? styles.userContent : styles.assistantContent,
-                ]}
-              >
-                {msg.image && (
-                  <Image
-                    source={{ uri: msg.image }}
-                    style={styles.messageImage}
-                    resizeMode="cover"
-                  />
-                )}
+              </View>
+              <Text style={styles.agentDesc} numberOfLines={2}>{agent.description}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-                {msg.file && (
-                  <View style={styles.fileAttachment}>
-                    <MaterialIcons name="picture-as-pdf" size={18} color={PRIMARY} />
-                    <Text style={styles.fileName} numberOfLines={1}>
-                      {msg.file.name}
-                    </Text>
-                  </View>
-                )}
+      {/* Agent Chat Modal */}
+      <Modal visible={!!selectedAgent} animationType="slide" presentationStyle="pageSheet">
+        {selectedAgent && (
+          <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
+            <KeyboardAvoidingView
+              style={{ flex: 1 }}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+            >
+              {/* Chat Header */}
+              <View style={styles.chatHeader}>
+                <TouchableOpacity onPress={closeAgent} style={styles.backBtn}>
+                  <Ionicons name="arrow-back" size={20} color="#333" />
+                </TouchableOpacity>
+                <View style={[styles.chatIcon, { backgroundColor: selectedAgent.bg }]}>
+                  <Text style={{ fontSize: 22 }}>{selectedAgent.emoji}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.chatName}>{selectedAgent.name}</Text>
+                  <Text style={styles.chatTagline}>{selectedAgent.tagline}</Text>
+                </View>
+                <View style={[styles.onlineDot, { backgroundColor: selectedAgent.color }]} />
+              </View>
 
-                {msg.isLoading ? (
-                  <View style={styles.loadingDots}>
-                    <ActivityIndicator size="small" color="#999" />
-                    <Text style={styles.loadingText}>Thinking...</Text>
-                  </View>
-                ) : (
-                  <Text
+              {/* Messages */}
+              <ScrollView style={styles.msgContainer} contentContainerStyle={styles.msgContent}>
+                {messages.map((msg) => (
+                  <View
+                    key={msg.id}
                     style={[
-                      styles.messageText,
-                      msg.role === "user" ? styles.userText : styles.assistantText,
+                      styles.bubble,
+                      msg.role === "user" ? styles.userBubble : styles.aiBubble,
                     ]}
                   >
-                    {msg.content}
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+                    {msg.role === "assistant" && (
+                      <View style={[styles.aiAvatar, { backgroundColor: selectedAgent.bg }]}>
+                        <Text style={{ fontSize: 16 }}>{selectedAgent.emoji}</Text>
+                      </View>
+                    )}
+                    <View
+                      style={[
+                        styles.bubbleInner,
+                        msg.role === "user"
+                          ? [styles.userInner, { backgroundColor: selectedAgent.color }]
+                          : styles.aiInner,
+                      ]}
+                    >
+                      {msg.isLoading ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 4 }}>
+                          <ActivityIndicator size="small" color="#999" />
+                          <Text style={{ fontSize: 13, color: "#999" }}>Thinking...</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.msgText, msg.role === "user" ? { color: "white" } : { color: "#333" }]}>
+                          {msg.content}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
 
-        {/* Attachment preview */}
-        {(attachedFile || attachedImage) && (
-          <View style={styles.attachmentPreview}>
-            {attachedImage && (
-              <View style={styles.imagePreview}>
-                <Image source={{ uri: attachedImage }} style={styles.previewImage} />
+              {/* Input */}
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder={`Message ${selectedAgent.name}...`}
+                  placeholderTextColor="#999"
+                  value={input}
+                  onChangeText={setInput}
+                  multiline
+                />
                 <TouchableOpacity
-                  style={styles.removeAttachment}
-                  onPress={() => setAttachedImage(null)}
+                  style={[
+                    styles.sendBtn,
+                    { backgroundColor: selectedAgent.color },
+                    (!input.trim() || sending) && { opacity: 0.4 },
+                  ]}
+                  onPress={sendMessage}
+                  disabled={!input.trim() || sending}
                 >
-                  <Ionicons name="close-circle" size={20} color="#ef4444" />
+                  <Ionicons name="send" size={18} color="white" />
                 </TouchableOpacity>
               </View>
-            )}
-            {attachedFile && (
-              <View style={styles.filePreview}>
-                <MaterialIcons name="picture-as-pdf" size={20} color={PRIMARY} />
-                <Text style={styles.filePreviewName} numberOfLines={1}>
-                  {attachedFile.name}
-                </Text>
-                <TouchableOpacity onPress={() => setAttachedFile(null)}>
-                  <Ionicons name="close-circle" size={20} color="#ef4444" />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
         )}
+      </Modal>
 
-        {/* Input Row */}
-        <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.iconButton} onPress={showAttachMenu}>
-            <Ionicons name="attach" size={22} color="#666" />
-          </TouchableOpacity>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Ask me anything..."
-            placeholderTextColor="#999"
-            value={input}
-            onChangeText={setInput}
-            multiline
-          />
-
-          <TouchableOpacity
-            style={[styles.iconButton, isRecording && styles.recordingButton]}
-            onPress={isRecording ? stopRecording : startRecording}
-          >
-            <Ionicons
-              name={isRecording ? "stop" : "mic"}
-              size={22}
-              color={isRecording ? "#ef4444" : "#666"}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!input.trim() && !attachedFile && !attachedImage) && styles.sendButtonDisabled,
-            ]}
-            onPress={sendMessage}
-            disabled={(!input.trim() && !attachedFile && !attachedImage) || sending}
-          >
-            <Ionicons name="send" size={18} color="white" />
-          </TouchableOpacity>
-        </View>
-
-        {/* File Quiz Modal */}
-        <FileQuizModal
-          visible={quizModalVisible}
-          onClose={() => setQuizModalVisible(false)}
-        />
-      </KeyboardAvoidingView>
+      <FileQuizModal visible={quizModalVisible} onClose={() => setQuizModalVisible(false)} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: "white",
-    elevation: 2,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    padding: 20, backgroundColor: "white",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  aiDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
+  headerTitle: { fontSize: 26, fontWeight: "bold", color: "#333" },
+  headerSubtitle: { fontSize: 13, color: "#666", marginTop: 2 },
+  quizBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center",
   },
-  headerTitle: { fontSize: 16, fontWeight: "bold", color: "#333" },
-  headerSubtitle: { fontSize: 11, color: "#999" },
-  quizButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PRIMARY + "20",
-    alignItems: "center",
-    justifyContent: "center",
+  list: { padding: 16, paddingBottom: 40 },
+  banner: {
+    flexDirection: "row", alignItems: "center", backgroundColor: PRIMARY + "15",
+    borderRadius: 12, padding: 12, marginBottom: 20, gap: 10,
+    borderWidth: 1, borderColor: PRIMARY + "30",
   },
-  onlineBadge: {
-    backgroundColor: "#22c55e20",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+  bannerText: { fontSize: 13, color: "#444", flex: 1, lineHeight: 18 },
+  card: {
+    backgroundColor: "white", borderRadius: 16, padding: 16,
+    flexDirection: "row", alignItems: "center", marginBottom: 12, elevation: 1, gap: 14,
   },
-  onlineText: { fontSize: 12, color: "#22c55e", fontWeight: "bold" },
-  messagesContainer: { flex: 1, backgroundColor: "#f7f8f6" },
-  messagesContent: { padding: 16, paddingBottom: 8 },
-  messageBubble: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginBottom: 12,
+  iconBox: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  emoji: { fontSize: 28 },
+  cardInfo: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" },
+  agentName: { fontSize: 16, fontWeight: "bold", color: "#333" },
+  tag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  tagText: { fontSize: 11, fontWeight: "600" },
+  agentDesc: { fontSize: 13, color: "#666", lineHeight: 18 },
+  chatHeader: {
+    flexDirection: "row", alignItems: "center", padding: 16,
+    backgroundColor: "white", elevation: 2, gap: 12,
   },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
+  },
+  chatIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  chatName: { fontSize: 16, fontWeight: "bold", color: "#333" },
+  chatTagline: { fontSize: 12, color: "#999" },
+  onlineDot: { width: 10, height: 10, borderRadius: 5 },
+  msgContainer: { flex: 1, backgroundColor: "#f7f8f6" },
+  msgContent: { padding: 16, paddingBottom: 8 },
+  bubble: { flexDirection: "row", alignItems: "flex-end", marginBottom: 12 },
   userBubble: { justifyContent: "flex-end" },
-  assistantBubble: { justifyContent: "flex-start" },
-  assistantIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
+  aiBubble: { justifyContent: "flex-start" },
+  aiAvatar: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 8 },
+  bubbleInner: { maxWidth: "78%", borderRadius: 18, padding: 12 },
+  userInner: { borderBottomRightRadius: 4 },
+  aiInner: { backgroundColor: "white", borderBottomLeftRadius: 4, elevation: 1 },
+  msgText: { fontSize: 14, lineHeight: 22 },
+  inputRow: {
+    flexDirection: "row", alignItems: "flex-end", padding: 12,
+    backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10,
   },
-  bubbleContent: {
-    maxWidth: "78%",
-    borderRadius: 18,
-    padding: 12,
+  textInput: {
+    flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333", maxHeight: 100,
   },
-  userContent: {
-    backgroundColor: PRIMARY,
-    borderBottomRightRadius: 4,
-  },
-  assistantContent: {
-    backgroundColor: "white",
-    borderBottomLeftRadius: 4,
-    elevation: 1,
-  },
-  messageText: { fontSize: 14, lineHeight: 22 },
-  userText: { color: "white" },
-  assistantText: { color: "#333" },
-  messageImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  fileAttachment: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 8,
-    gap: 6,
-  },
-  fileName: { fontSize: 12, color: "#333", flex: 1 },
-  loadingDots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 4,
-  },
-  loadingText: { fontSize: 13, color: "#999" },
-  attachmentPreview: {
-    backgroundColor: "white",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  imagePreview: { position: "relative" },
-  previewImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  removeAttachment: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-  },
-  filePreview: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    padding: 8,
-    gap: 6,
-    flex: 1,
-  },
-  filePreviewName: { fontSize: 12, color: "#333", flex: 1 },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    padding: 12,
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    gap: 8,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recordingButton: { backgroundColor: "#ef444420" },
-  input: {
-    flex: 1,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#333",
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: { backgroundColor: "#ccc" },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
 });

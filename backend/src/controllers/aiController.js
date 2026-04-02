@@ -221,6 +221,7 @@ export const getExamReadiness = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
 // ─── POST /api/ai/quiz-from-file ──────────────────────────────────────────────
 export const generateQuizFromFile = async (req, res) => {
   try {
@@ -283,7 +284,6 @@ export const saveDiagnosticResult = async (req, res) => {
 
     if (error) throw error;
 
-    // Auto generate study plan based on result
     const passed = (score / total) * 100 >= 60;
     const messages = [
       {
@@ -319,7 +319,6 @@ export const saveDiagnosticResult = async (req, res) => {
     const clean = raw.replace(/```json|```/g, "").trim();
     const plan = JSON.parse(clean);
 
-    // Save study plan
     await supabase.from("study_plans").insert({
       user_id: req.user.id,
       subjects: [subject],
@@ -331,6 +330,69 @@ export const saveDiagnosticResult = async (req, res) => {
       message: "Result saved",
       data: { plan },
     });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Agent Definitions ────────────────────────────────────────────────────────
+const AGENTS = {
+  tutor: {
+    name: "Tutor",
+    systemPrompt: `You are an expert university tutor. Explain concepts clearly, answer academic questions, and guide students through difficult material. Be encouraging, patient, and use examples. Keep responses concise.`,
+  },
+  course_builder: {
+    name: "Course Builder",
+    systemPrompt: `You are a curriculum designer. When a student gives you a topic, help them refine it then generate a structured course outline. Be specific about chapters and what each one covers.`,
+  },
+  goals: {
+    name: "Goals Coach",
+    systemPrompt: `You are a life and academic goals coach for university students. Help them define their dream goal then break it into: a 4-year roadmap, this semester's focus, this month's targets, this week's actions, today's first step. Be specific and motivating.`,
+  },
+  career: {
+    name: "Career Advisor",
+    systemPrompt: `You are a university career advisor. Help with CV writing, interview prep, internship hunting, LinkedIn optimization and career path planning. Ask about their field and goals first then give specific actionable advice.`,
+  },
+  wellness: {
+    name: "Wellness Coach",
+    systemPrompt: `You are a student wellness and mental health coach. Check in on how the student feels, detect stress or burnout, suggest coping strategies and healthy habits. Be warm and empathetic. Never diagnose. If someone seems in crisis always recommend speaking to a professional.`,
+  },
+  budget: {
+    name: "Budget Advisor",
+    systemPrompt: `You are a financial advisor for university students. Help with monthly budget planning, tracking expenses, saving tips and managing scholarships. Be practical and realistic about student budgets.`,
+  },
+};
+
+// ─── POST /api/ai/agent-chat ──────────────────────────────────────────────────
+export const agentChat = async (req, res) => {
+  try {
+    const { agentId, message, history = [] } = req.body;
+
+    if (!agentId || !message) {
+      return res.status(400).json({ success: false, message: "agentId and message are required" });
+    }
+
+    const agent = AGENTS[agentId];
+    if (!agent) {
+      return res.status(400).json({ success: false, message: "Invalid agent ID" });
+    }
+
+    const messages = [
+      { role: "system", content: agent.systemPrompt },
+      ...history,
+      { role: "user", content: message },
+    ];
+
+    const reply = await chat(messages);
+
+    // Log activity
+    await supabase.from("activity_logs").insert({
+      user_id: req.user.id,
+      type: "agent_chat",
+      description: `Chatted with ${agent.name}`,
+    });
+
+    return res.status(200).json({ success: true, data: { reply } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

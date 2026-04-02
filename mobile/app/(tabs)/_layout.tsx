@@ -61,6 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen name="course" options={{ href: null }} />
       <Tabs.Screen name="moodle" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="diagnostic" options={{ href: null }} />
     </Tabs>
   );
 }
