@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGetProfile, apiUpdateProfile, apiGetGoal, apiUpdateGoal } from "@/services/api";
@@ -21,6 +22,7 @@ const PRIMARY = "#9cd21f";
 
 export default function Settings() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user, signOut } = useAuth();
 
   const [fullName, setFullName] = useState("");
@@ -143,7 +145,16 @@ export default function Settings() {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity
+            onPress={() => {
+              // Prevent: "GO_BACK was not handled by any navigator"
+              if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
+                (navigation as any).goBack?.();
+              } else {
+                router.replace("/(tabs)/dashboard" as any);
+              }
+            }}
+          >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
@@ -380,6 +391,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     color: "#333",
+    textAlignVertical: "center",
     marginBottom: 10,
   },
   saveButton: {

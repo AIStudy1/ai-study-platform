@@ -281,6 +281,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     marginLeft: 10,
+    color: "#333",
+    textAlignVertical: "center",
   },
   terms: {
     fontSize: 12,

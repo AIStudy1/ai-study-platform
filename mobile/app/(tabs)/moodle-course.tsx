@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { supabase } from "@/supabaseConfig";
 import { useAuth } from "@/context/AuthContext";
 
@@ -38,6 +39,7 @@ interface Section {
 
 export default function MoodleCourse() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { courseId, courseName } = useLocalSearchParams<{
     courseId: string;
     courseName: string;
@@ -65,7 +67,11 @@ export default function MoodleCourse() {
 
       if (!connection) {
         Alert.alert("Error", "Moodle not connected");
-        router.back();
+        if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
+          (navigation as any).goBack?.();
+        } else {
+          router.replace("/(tabs)/moodle" as any);
+        }
         return;
       }
 
@@ -192,7 +198,16 @@ export default function MoodleCourse() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
+              (navigation as any).goBack?.();
+            } else {
+              router.replace("/(tabs)/moodle" as any);
+            }
+          }}
+        >
           <Ionicons name="arrow-back" size={20} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>

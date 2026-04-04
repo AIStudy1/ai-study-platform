@@ -117,8 +117,31 @@ export const apiUploadFile = async (fileUri: string, fileName: string, mimeType:
   if (!data.success) throw new Error(data.message);
   return data;
 };
+
+// ─── AI Agent Chats (Threads) ────────────────────────────────────────────────
+export const apiListConversations = (agentId?: string) =>
+  authRequest(
+    "GET",
+    agentId ? `/api/ai/conversations?agentId=${encodeURIComponent(agentId)}` : "/api/ai/conversations"
+  );
+
+export const apiCreateConversation = (agentId: string, title?: string) =>
+  authRequest("POST", "/api/ai/conversations", { agentId, title });
+
+export const apiGetConversationMessages = (conversationId: string) =>
+  authRequest("GET", `/api/ai/conversations/${conversationId}/messages`);
+
 export const apiAgentChat = (
   agentId: string,
   message: string,
-  history: { role: string; content: string }[] = []
-) => authRequest("POST", "/api/ai/agent-chat", { agentId, message, history });
+  conversationId: string,
+  attachmentText?: string,
+  attachmentName?: string
+) =>
+  authRequest("POST", "/api/ai/agent-chat", {
+    agentId,
+    message,
+    conversationId,
+    attachmentText,
+    attachmentName,
+  });

@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "@/supabaseConfig";
 import { apiGetMyCourses, apiGetProfile } from "@/services/api";
 
@@ -55,6 +56,13 @@ export default function Dashboard() {
       fetchAll();
     }
   }, [user]);
+
+  // Refresh when returning to Dashboard (e.g., after adding an AI course from the AI chat).
+  useFocusEffect(() => {
+    if (!user) return;
+    fetchAICourses();
+    fetchProfile();
+  });
 
   const fetchAll = async () => {
     await Promise.all([fetchMoodleCourses(), fetchAICourses(), fetchProfile()]);

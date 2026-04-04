@@ -216,6 +216,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     marginLeft: 8,
+    color: "#333",
+    textAlignVertical: "center",
   },
   forgotRow: {
     alignItems: "flex-end",

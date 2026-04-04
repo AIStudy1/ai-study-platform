@@ -1,5 +1,5 @@
 import supabase from "../config/supabaseClient.js";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 export const uploadFile = async (req, res) => {
   try {
@@ -38,7 +38,7 @@ export const uploadFile = async (req, res) => {
     let extractedText = null;
     if (file.mimetype === "application/pdf") {
       try {
-        const parsed = await pdfParse(file.buffer);
+        const parsed = await new PDFParse({ data: file.buffer }).getText();
         extractedText = parsed.text;
       } catch (parseError) {
         console.error("PDF parse error:", parseError.message);

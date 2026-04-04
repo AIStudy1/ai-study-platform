@@ -7,6 +7,7 @@ import {
   getCourseDistribution,
   getWeeklySignups,
   getRecentActivity,
+  getFeaturedCourses,
 } from "../controllers/dashboardController.js";
 
 const router = express.Router();

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { apiCompleteChapter, apiSubmitQuiz, apiLogActivity, apiGetCourse } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 
@@ -44,6 +45,7 @@ type TabType = "chapters" | "quizzes" | "progress";
 
 export default function CourseDetail() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const [activeTab, setActiveTab] = useState<TabType>("chapters");
   const [course, setCourse] = useState<Course | null>(null);
@@ -88,7 +90,11 @@ export default function CourseDetail() {
       });
     } catch (error: any) {
       Alert.alert("Error", "Could not load course. Please try again.");
-      router.back();
+      if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
+        (navigation as any).goBack?.();
+      } else {
+        router.replace("/(tabs)/dashboard" as any);
+      }
     } finally {
       setLoading(false);
     }
@@ -211,7 +217,16 @@ export default function CourseDetail() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
+              (navigation as any).goBack?.();
+            } else {
+              router.replace("/(tabs)/dashboard" as any);
+            }
+          }}
+        >
           <Ionicons name="arrow-back" size={20} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>

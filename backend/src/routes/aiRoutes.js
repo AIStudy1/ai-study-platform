@@ -10,6 +10,11 @@ import {
   saveDiagnosticResult,
   agentChat,
 } from "../controllers/aiController.js";
+import {
+  listConversations,
+  createConversation,
+  getConversationMessages,
+} from "../controllers/aiConversationController.js";
 
 const router = express.Router();
 
@@ -23,5 +28,10 @@ router.post("/exam-readiness", getExamReadiness);
 router.post("/quiz-from-file", generateQuizFromFile);
 router.post("/save-diagnostic", saveDiagnosticResult);
 router.post("/agent-chat", agentChat);
+
+// Chat history / threads
+router.get("/conversations", listConversations);
+router.post("/conversations", createConversation);
+router.get("/conversations/:id/messages", getConversationMessages);
 
 export default router;

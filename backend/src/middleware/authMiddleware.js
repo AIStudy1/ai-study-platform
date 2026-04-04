@@ -22,5 +22,7 @@ export const authenticateUser = async (req, res, next) => {
   }
 
   req.user = user;
+  // Keep the user's access token so controllers can call Supabase with RLS as this user.
+  req.accessToken = token;
   next();
 };

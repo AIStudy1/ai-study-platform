@@ -1,4 +1,5 @@
 import supabase from "../config/supabaseClient.js";
+import { getAuthedSupabaseClient } from "../utils/supabaseAuthedClient.js";
 
 /**
  * GET /api/ai-courses
@@ -6,7 +7,8 @@ import supabase from "../config/supabaseClient.js";
  */
 export const getUserCourses = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const db = getAuthedSupabaseClient(req.accessToken);
+    const { data, error } = await db
       .from("ai_courses")
       .select(`
         *,
@@ -49,8 +51,10 @@ export const createCourse = async (req, res) => {
       });
     }
 
+    const db = getAuthedSupabaseClient(req.accessToken);
+
     // Create the course
-    const { data: course, error: courseError } = await supabase
+    const { data: course, error: courseError } = await db
       .from("ai_courses")
       .insert({
         user_id: req.user.id,
@@ -74,7 +78,7 @@ export const createCourse = async (req, res) => {
       is_completed: false,
     }));
 
-    const { data: createdChapters, error: chaptersError } = await supabase
+    const { data: createdChapters, error: chaptersError } = await db
       .from("chapters")
       .insert(chaptersToInsert)
       .select();
@@ -89,13 +93,14 @@ export const createCourse = async (req, res) => {
           course_id: course.id,
           chapter_id: createdChapters[index].id,
           title: chapter.quiz.title || `Quiz: ${chapter.title}`,
+          questions: chapter.quiz.questions || [],
           passed: false,
         });
       }
     });
 
     if (quizzesToInsert.length > 0) {
-      await supabase.from("quizzes").insert(quizzesToInsert);
+      await db.from("quizzes").insert(quizzesToInsert);
     }
 
     // Log activity
@@ -119,7 +124,8 @@ export const getCourseById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    const db = getAuthedSupabaseClient(req.accessToken);
+    const { data, error } = await db
       .from("ai_courses")
       .select(`
         *,
@@ -154,7 +160,8 @@ export const deleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
+    const db = getAuthedSupabaseClient(req.accessToken);
+    const { error } = await db
       .from("ai_courses")
       .delete()
       .eq("id", id)
@@ -175,9 +182,10 @@ export const deleteCourse = async (req, res) => {
 export const completeChapter = async (req, res) => {
   try {
     const { courseId, chapterId } = req.params;
+    const db = getAuthedSupabaseClient(req.accessToken);
 
     // Mark chapter complete
-    const { error: chapterError } = await supabase
+    const { error: chapterError } = await db
       .from("chapters")
       .update({
         is_completed: true,
@@ -189,14 +197,14 @@ export const completeChapter = async (req, res) => {
     if (chapterError) throw chapterError;
 
     // Count completed chapters
-    const { count: completedCount } = await supabase
+    const { count: completedCount } = await db
       .from("chapters")
       .select("*", { count: "exact", head: true })
       .eq("course_id", courseId)
       .eq("is_completed", true);
 
     // Update course completed_chapters count
-    const { error: courseError } = await supabase
+    const { error: courseError } = await db
       .from("ai_courses")
       .update({ completed_chapters: completedCount || 0 })
       .eq("id", courseId)
@@ -235,7 +243,8 @@ export const submitQuiz = async (req, res) => {
 
     const passed = score >= 60;
 
-    const { error } = await supabase
+    const db = getAuthedSupabaseClient(req.accessToken);
+    const { error } = await db
       .from("quizzes")
       .update({
         score,
