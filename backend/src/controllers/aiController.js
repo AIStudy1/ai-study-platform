@@ -1,6 +1,5 @@
 import supabase from "../config/supabaseClient.js";
 import Groq from "groq-sdk";
-import { getAuthedSupabaseClient } from "../utils/supabaseAuthedClient.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = "llama-3.3-70b-versatile";
@@ -13,109 +12,6 @@ async function chat(messages) {
     temperature: 0.7,
   });
   return response.choices[0].message.content;
-}
-
-function fallbackTitleFromMessage(text) {
-  const cleaned = String(text ?? "")
-    .replace(/\s+/g, " ")
-    .replace(/[\r\n]+/g, " ")
-    .trim();
-  if (!cleaned) return "New chat";
-  return cleaned.length > 48 ? `${cleaned.slice(0, 48).trim()}…` : cleaned;
-}
-
-async function generateConversationTitle({ agentName, userMessage }) {
-  const response = await groq.chat.completions.create({
-    model: MODEL,
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You generate short chat titles.\n" +
-          "- Output ONLY the title, no quotes, no emojis.\n" +
-          "- 3 to 6 words maximum.\n" +
-          "- Same language as the user's message.\n" +
-          "- Make it specific.\n",
-      },
-      {
-        role: "user",
-        content:
-          `Agent: ${agentName}\n` +
-          `User message: ${userMessage}\n` +
-          "Title:",
-      },
-    ],
-  });
-
-  const raw = response.choices?.[0]?.message?.content ?? "";
-  const title = String(raw).replace(/["`]/g, "").trim();
-  return title || fallbackTitleFromMessage(userMessage);
-}
-
-function looksLikeCourseIntent(text) {
-  const t = String(text ?? "").toLowerCase();
-  // English/French/Arabic quick heuristics (AI will refine).
-  return (
-    t.includes("learn") ||
-    t.includes("study") ||
-    t.includes("course") ||
-    t.includes("curriculum") ||
-    t.includes("apprendre") ||
-    t.includes("étudier") ||
-    t.includes("etudier") ||
-    t.includes("cours") ||
-    t.includes("أتعلم") ||
-    t.includes("تعلم") ||
-    t.includes("أدرس") ||
-    t.includes("دورة")
-  );
-}
-
-async function extractCourseSuggestion({ userMessage }) {
-  if (!looksLikeCourseIntent(userMessage)) {
-    return { shouldSuggest: false };
-  }
-
-  try {
-    const response = await groq.chat.completions.create({
-      model: MODEL,
-      temperature: 0.1,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a classifier that decides if the user wants a course generated.\n" +
-            "Return ONLY valid JSON (no markdown).\n" +
-            "Use the same language as the user's message.\n" +
-            "Schema:\n" +
-            "{ \"shouldSuggest\": boolean, \"topic\": string, \"level\": \"beginner\"|\"intermediate\"|\"advanced\" }\n" +
-            "If unclear, set shouldSuggest=false.\n",
-        },
-        {
-          role: "user",
-          content: `Message: ${userMessage}`,
-        },
-      ],
-    });
-
-    const raw = response.choices?.[0]?.message?.content ?? "";
-    const clean = String(raw).replace(/```json|```/g, "").trim();
-
-    // Be resilient: the model may wrap JSON with extra text.
-    const jsonMatch = clean.match(/\{[\s\S]*\}/);
-    const jsonText = (jsonMatch ? jsonMatch[0] : clean).trim();
-    const parsed = JSON.parse(jsonText);
-    if (!parsed || typeof parsed.shouldSuggest !== "boolean") return { shouldSuggest: false };
-    if (!parsed.shouldSuggest) return { shouldSuggest: false };
-    return {
-      shouldSuggest: true,
-      topic: String(parsed.topic ?? "").trim(),
-      level: (parsed.level === "intermediate" || parsed.level === "advanced") ? parsed.level : "beginner",
-    };
-  } catch {
-    return { shouldSuggest: false };
-  }
 }
 
 // ─── POST /api/ai/chat ────────────────────────────────────────────────────────
@@ -443,23 +339,23 @@ export const saveDiagnosticResult = async (req, res) => {
 const AGENTS = {
   tutor: {
     name: "Tutor",
-    systemPrompt: `You are an expert university tutor. Explain concepts clearly, answer academic questions, and guide students through difficult material. Be encouraging, patient, and use examples. Keep responses concise.`,
+    systemPrompt: `You are an expert university tutor. Explain concepts clearly, answer academic questions, and guide students through difficult material. Be encouraging, patient, and use examples. Keep responses concise. Use the student's diagnostic scores and course progress to focus on their weak areas.`,
   },
   course_builder: {
     name: "Course Builder",
-    systemPrompt: `You are a curriculum designer. When a student gives you a topic, help them refine it then generate a structured course outline. Be specific about chapters and what each one covers.`,
+    systemPrompt: `You are a curriculum designer. When a student gives you a topic, help them refine it then generate a structured course outline. Be specific about chapters and what each one covers. Use their current courses to avoid duplication and suggest complementary topics.`,
   },
   goals: {
     name: "Goals Coach",
-    systemPrompt: `You are a life and academic goals coach for university students. Help them define their dream goal then break it into: a 4-year roadmap, this semester's focus, this month's targets, this week's actions, today's first step. Be specific and motivating.`,
+    systemPrompt: `You are a life and academic goals coach for university students. Help them define their dream goal then break it into: a 4-year roadmap, this semester's focus, this month's targets, this week's actions, today's first step. Be specific and motivating. Use their current level, XP and courses to make the roadmap realistic.`,
   },
   career: {
     name: "Career Advisor",
-    systemPrompt: `You are a university career advisor. Help with CV writing, interview prep, internship hunting, LinkedIn optimization and career path planning. Ask about their field and goals first then give specific actionable advice.`,
+    systemPrompt: `You are a university career advisor. Help with CV writing, interview prep, internship hunting, LinkedIn optimization and career path planning. Use the student's courses and level to give field-specific advice.`,
   },
   wellness: {
     name: "Wellness Coach",
-    systemPrompt: `You are a student wellness and mental health coach. Check in on how the student feels, detect stress or burnout, suggest coping strategies and healthy habits. Be warm and empathetic. Never diagnose. If someone seems in crisis always recommend speaking to a professional.`,
+    systemPrompt: `You are a student wellness and mental health coach. Check in on how the student feels, detect stress or burnout, suggest coping strategies and healthy habits. Be warm and empathetic. Never diagnose. If the student's streak has dropped or scores are falling, gently acknowledge it. If someone seems in crisis always recommend speaking to a professional.`,
   },
   budget: {
     name: "Budget Advisor",
@@ -470,13 +366,10 @@ const AGENTS = {
 // ─── POST /api/ai/agent-chat ──────────────────────────────────────────────────
 export const agentChat = async (req, res) => {
   try {
-    const { agentId, message, conversationId, attachmentText, attachmentName } = req.body;
+    const { agentId, message, history = [] } = req.body;
 
     if (!agentId || !message) {
       return res.status(400).json({ success: false, message: "agentId and message are required" });
-    }
-    if (!conversationId) {
-      return res.status(400).json({ success: false, message: "conversationId is required" });
     }
 
     const agent = AGENTS[agentId];
@@ -484,115 +377,66 @@ export const agentChat = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid agent ID" });
     }
 
-    // Persistent, shared memory across all agents (per user).
-    // We store and load chat messages from Supabase using the user's JWT so RLS policies can apply.
-    const authedSupabase = getAuthedSupabaseClient(req.accessToken);
+    // ── Fetch student context in parallel ─────────────────────────────────────
+    const [
+      { data: profile },
+      { data: courses },
+      { data: diagnostics },
+      { data: goal },
+    ] = await Promise.all([
+      supabase.from("users").select("full_name, xp, level, streak_days, study_hours").eq("id", req.user.id).single(),
+      supabase.from("ai_courses").select("title, subject, total_chapters, completed_chapters").eq("user_id", req.user.id).order("created_at", { ascending: false }).limit(5),
+      supabase.from("diagnostic_results").select("subject, score, total, taken_at").eq("user_id", req.user.id).order("taken_at", { ascending: false }).limit(5),
+      supabase.from("daily_goals").select("goal_minutes, studied_minutes, streak_days").eq("user_id", req.user.id).single(),
+    ]);
 
-    // Validate conversation belongs to this user.
-    const { data: conv, error: convError } = await authedSupabase
-      .from("ai_conversations")
-      .select("id, title, title_is_auto")
-      .eq("user_id", req.user.id)
-      .eq("id", conversationId)
-      .single();
-    if (convError) throw convError;
+    // ── Build context block ───────────────────────────────────────────────────
+    const courseList = (courses || []).map((c) => {
+      const pct = c.total_chapters > 0
+        ? Math.round((c.completed_chapters / c.total_chapters) * 100)
+        : 0;
+      return `  - ${c.title} (${c.subject}): ${pct}% complete`;
+    }).join("\n") || "  - No courses yet";
 
-    const { data: recent, error: recentError } = await authedSupabase
-      .from("ai_messages")
-      .select("role, content")
-      .eq("user_id", req.user.id)
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
-      .limit(30);
+    const diagnosticList = (diagnostics || []).map((d) => {
+      const pct = Math.round((d.score / d.total) * 100);
+      return `  - ${d.subject}: ${pct}%`;
+    }).join("\n") || "  - No diagnostics yet";
 
-    if (recentError) throw recentError;
+    const studentContext = `
+STUDENT CONTEXT (use this to personalize your responses):
+- Name: ${profile?.full_name || "Student"}
+- Level: ${profile?.level || 1} | XP: ${profile?.xp || 0}
+- Study streak: ${profile?.streak_days || goal?.streak_days || 0} days
+- Study hours total: ${profile?.study_hours || 0}h
+- Daily goal: ${goal?.goal_minutes || 30} mins/day
 
-    const attachmentBlock =
-      attachmentText && String(attachmentText).trim().length > 0
-        ? `Here is content from an uploaded file${attachmentName ? ` (${attachmentName})` : ""}:\n\n` +
-          String(attachmentText).trim().slice(0, 8000)
-        : null;
+Current courses:
+${courseList}
 
+Recent diagnostic scores:
+${diagnosticList}
+
+Always address the student by name. Use their data to give personalized, specific advice.
+`;
+
+    // ── Call Groq ─────────────────────────────────────────────────────────────
     const messages = [
-      {
-        role: "system",
-        content:
-          `${agent.systemPrompt}\n\n` +
-          "You have access to the user's past messages (shared across agents). " +
-          "Use them as memory when relevant. If the user asks about something not in memory, ask a short clarifying question.",
-      },
-      ...(recent ?? []).map((m) => ({ role: m.role, content: m.content })),
-      ...(attachmentBlock ? [{ role: "user", content: attachmentBlock }] : []),
+      { role: "system", content: agent.systemPrompt + "\n\n" + studentContext },
+      ...history,
       { role: "user", content: message },
     ];
 
     const reply = await chat(messages);
 
-    // Suggest adding an AI-generated course when the user expresses learning intent.
-    // (Front-end shows a prompt like ChatGPT/Claude.)
-    const courseSuggestion =
-      agentId === "course_builder"
-        ? { shouldSuggest: false }
-        : await extractCourseSuggestion({ userMessage: message });
-
-    // Check if this is the first user message in the conversation.
-    const { count: userCount, error: countError } = await authedSupabase
-      .from("ai_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", req.user.id)
-      .eq("conversation_id", conversationId)
-      .eq("role", "user");
-    if (countError) throw countError;
-
-    // Persist conversation turns (shared across agents).
-    // Note: requires `ai_messages` table + RLS policies in Supabase.
-    const { error: insertError } = await authedSupabase.from("ai_messages").insert([
-      { user_id: req.user.id, conversation_id: conversationId, agent_id: agentId, role: "user", content: message },
-      { user_id: req.user.id, conversation_id: conversationId, agent_id: agentId, role: "assistant", content: reply },
-    ]);
-    if (insertError) throw insertError;
-
-    // Auto-title the conversation based on the first message (same language).
-    // Only do this if it still has the default title and is marked auto.
-    const isDefaultTitle = !conv?.title || conv.title === "New chat";
-    const isAuto = conv?.title_is_auto !== false;
-    const isFirst = (userCount ?? 0) === 0;
-    let conversationTitle = conv?.title ?? "New chat";
-    if (isFirst && isDefaultTitle && isAuto) {
-      const newTitle = await generateConversationTitle({
-        agentName: agent.name,
-        userMessage: message,
-      });
-      conversationTitle = newTitle;
-      await authedSupabase
-        .from("ai_conversations")
-        .update({
-          title: newTitle,
-          title_is_auto: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", req.user.id)
-        .eq("id", conversationId);
-    }
-
-    // Touch conversation updated_at
-    await authedSupabase
-      .from("ai_conversations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("user_id", req.user.id)
-      .eq("id", conversationId);
-
-    // Log activity
+    // ── Log activity ──────────────────────────────────────────────────────────
     await supabase.from("activity_logs").insert({
       user_id: req.user.id,
       type: "agent_chat",
       description: `Chatted with ${agent.name}`,
     });
 
-    return res.status(200).json({
-      success: true,
-      data: { reply, conversationId, conversationTitle, courseSuggestion },
-    });
+    return res.status(200).json({ success: true, data: { reply } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
