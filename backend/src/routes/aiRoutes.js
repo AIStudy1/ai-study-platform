@@ -15,6 +15,10 @@ import {
   createConversation,
   getConversationMessages,
 } from "../controllers/aiConversationController.js";
+import {
+  listCourseSuggestions,
+  patchCourseSuggestion,
+} from "../controllers/courseSuggestionController.js";
 
 const router = express.Router();
 
@@ -33,5 +37,8 @@ router.post("/agent-chat", agentChat);
 router.get("/conversations", listConversations);
 router.post("/conversations", createConversation);
 router.get("/conversations/:id/messages", getConversationMessages);
+
+router.get("/course-suggestions", listCourseSuggestions);
+router.patch("/course-suggestions/:id", patchCourseSuggestion);
 
 export default router;

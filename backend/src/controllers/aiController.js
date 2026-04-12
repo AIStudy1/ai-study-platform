@@ -1,11 +1,26 @@
 import supabase from "../config/supabaseClient.js";
 import Groq from "groq-sdk";
+import { getAuthedSupabaseClient } from "../utils/supabaseAuthedClient.js";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = "llama-3.3-70b-versatile";
+
+let groqClient = null;
+
+function getGroq() {
+  if (groqClient) return groqClient;
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(
+      "GROQ_API_KEY is missing. Add it to backend/.env (create a key at https://console.groq.com/keys)"
+    );
+  }
+  groqClient = new Groq({ apiKey });
+  return groqClient;
+}
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 async function chat(messages) {
+  const groq = getGroq();
   const response = await groq.chat.completions.create({
     model: MODEL,
     messages,
@@ -57,6 +72,16 @@ export const generateCourse = async (req, res) => {
           "title": "course title",
           "subject": "subject area",
           "description": "short description",
+          "entry_quiz": {
+            "title": "short placement quiz title",
+            "questions": [
+              {
+                "question": "question text",
+                "options": ["A", "B", "C", "D"],
+                "answer": "A"
+              }
+            ]
+          },
           "chapters": [
             {
               "title": "chapter title",
@@ -74,6 +99,7 @@ export const generateCourse = async (req, res) => {
             }
           ]
         }
+        Generate exactly 5 questions in entry_quiz to assess the student's starting level on this topic (mix easy/medium).
         Generate 4 chapters. Each chapter must have 3 quiz questions.`,
       },
     ];
@@ -363,13 +389,89 @@ const AGENTS = {
   },
 };
 
+const JSON_FORMAT_RULE = `
+OUTPUT FORMAT: Respond with valid JSON only (no markdown code fences). Shape:
+{"reply":"your full natural reply (newlines allowed inside the string)","courseSuggestion":null}
+If the student clearly wants a new multi-chapter AI course in the app on a concrete topic, use:
+{"reply":"...","courseSuggestion":{"shouldSuggest":true,"topic":"short specific topic","level":"beginner"|"intermediate"|"advanced"}}
+Use courseSuggestion only when they want to learn/build/study a structured course on something specific; otherwise null.`;
+
+function clipAgentContent(s) {
+  if (!s) return "";
+  const max = 3200;
+  return s.length <= max ? s : s.slice(0, max) + "…";
+}
+
+function buildCrossAgentSection(orderedMessages) {
+  if (!orderedMessages?.length) return "";
+  const lines = orderedMessages.map((m) => {
+    const label = AGENTS[m.agent_id]?.name || m.agent_id;
+    const who = m.role === "user" ? "Student" : label;
+    return `[${label}] ${who}: ${clipAgentContent(m.content)}`;
+  });
+  return `\nSHARED CONTEXT FROM OTHER ASSISTANTS (same student; use when it helps continuity; stay in your role):\n${lines.join("\n")}\n`;
+}
+
+function normalizeAgentCourseSuggestion(cs) {
+  if (!cs || typeof cs !== "object" || !cs.shouldSuggest || !cs.topic) return null;
+  const level = ["beginner", "intermediate", "advanced"].includes(cs.level)
+    ? cs.level
+    : "beginner";
+  return {
+    shouldSuggest: true,
+    topic: String(cs.topic).trim().slice(0, 400),
+    level,
+  };
+}
+
+function parseAgentStructuredOutput(raw) {
+  if (!raw || typeof raw !== "string") {
+    return { reply: "Sorry, I could not produce a reply.", courseSuggestion: null };
+  }
+  const cleaned = raw.replace(/```json\s*|```/gi, "").trim();
+  try {
+    const o = JSON.parse(cleaned);
+    if (o && typeof o.reply === "string") {
+      return { reply: o.reply, courseSuggestion: o.courseSuggestion ?? null };
+    }
+  } catch {
+    /* treat as plain text */
+  }
+  return { reply: raw, courseSuggestion: null };
+}
+
+async function groqAgentStructuredJson(messages) {
+  const groq = getGroq();
+  try {
+    const response = await groq.chat.completions.create({
+      model: MODEL,
+      messages,
+      temperature: 0.65,
+      max_tokens: 4096,
+      response_format: { type: "json_object" },
+    });
+    return response.choices[0].message.content;
+  } catch {
+    const response = await groq.chat.completions.create({
+      model: MODEL,
+      messages,
+      temperature: 0.65,
+      max_tokens: 4096,
+    });
+    return response.choices[0].message.content;
+  }
+}
+
 // ─── POST /api/ai/agent-chat ──────────────────────────────────────────────────
 export const agentChat = async (req, res) => {
   try {
-    const { agentId, message, history = [] } = req.body;
+    const { agentId, message, conversationId, attachmentText, attachmentName } = req.body ?? {};
 
-    if (!agentId || !message) {
+    if (!agentId || !message?.trim()) {
       return res.status(400).json({ success: false, message: "agentId and message are required" });
+    }
+    if (!conversationId) {
+      return res.status(400).json({ success: false, message: "conversationId is required" });
     }
 
     const agent = AGENTS[agentId];
@@ -377,7 +479,80 @@ export const agentChat = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid agent ID" });
     }
 
-    // ── Fetch student context in parallel ─────────────────────────────────────
+    const authed = getAuthedSupabaseClient(req.accessToken);
+
+    const { data: conv, error: convErr } = await authed
+      .from("ai_conversations")
+      .select("id, agent_id, user_id")
+      .eq("id", conversationId)
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (convErr || !conv) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+    if (conv.agent_id !== agentId) {
+      return res.status(400).json({
+        success: false,
+        message: "This thread belongs to a different assistant",
+      });
+    }
+
+    let userContent = message.trim();
+    const trimmedAtt = typeof attachmentText === "string" ? attachmentText.trim() : "";
+    if (trimmedAtt) {
+      userContent += `\n\n[Uploaded file: ${attachmentName || "document"}]\n${trimmedAtt.slice(0, 14000)}`;
+    }
+
+    const { error: userInsErr } = await authed.from("ai_messages").insert({
+      conversation_id: conversationId,
+      user_id: req.user.id,
+      agent_id: agentId,
+      role: "user",
+      content: userContent,
+    });
+
+    if (userInsErr) {
+      console.error("ai_messages user insert:", userInsErr);
+      return res.status(500).json({
+        success: false,
+        message: userInsErr.message || "Could not save your message",
+      });
+    }
+
+    const { data: threadRows, error: threadErr } = await authed
+      .from("ai_messages")
+      .select("role, content")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true })
+      .limit(60);
+
+    if (threadErr) throw threadErr;
+
+    const threadForModel = (threadRows || []).map(({ role, content }) => ({
+      role: role === "assistant" ? "assistant" : "user",
+      content: clipAgentContent(content),
+    }));
+
+    const { data: otherConvs } = await authed
+      .from("ai_conversations")
+      .select("id")
+      .eq("user_id", req.user.id)
+      .neq("agent_id", agentId);
+
+    const otherIds = (otherConvs || []).map((c) => c.id).filter(Boolean);
+    let crossSection = "";
+    if (otherIds.length) {
+      const { data: crossRows } = await authed
+        .from("ai_messages")
+        .select("role, content, agent_id, created_at")
+        .in("conversation_id", otherIds)
+        .order("created_at", { ascending: false })
+        .limit(36);
+
+      crossSection = buildCrossAgentSection((crossRows || []).reverse());
+    }
+
     const [
       { data: profile },
       { data: courses },
@@ -385,12 +560,11 @@ export const agentChat = async (req, res) => {
       { data: goal },
     ] = await Promise.all([
       supabase.from("users").select("full_name, xp, level, streak_days, study_hours").eq("id", req.user.id).single(),
-      supabase.from("ai_courses").select("title, subject, total_chapters, completed_chapters").eq("user_id", req.user.id).order("created_at", { ascending: false }).limit(5),
+      supabase.from("ai_courses").select("title, subject, total_chapters, completed_chapters").eq("user_id", req.user.id).order("created_at", { ascending: false }).limit(8),
       supabase.from("diagnostic_results").select("subject, score, total, taken_at").eq("user_id", req.user.id).order("taken_at", { ascending: false }).limit(5),
       supabase.from("daily_goals").select("goal_minutes, studied_minutes, streak_days").eq("user_id", req.user.id).single(),
     ]);
 
-    // ── Build context block ───────────────────────────────────────────────────
     const courseList = (courses || []).map((c) => {
       const pct = c.total_chapters > 0
         ? Math.round((c.completed_chapters / c.total_chapters) * 100)
@@ -404,7 +578,7 @@ export const agentChat = async (req, res) => {
     }).join("\n") || "  - No diagnostics yet";
 
     const studentContext = `
-STUDENT CONTEXT (use this to personalize your responses):
+STUDENT CONTEXT (personalize using this):
 - Name: ${profile?.full_name || "Student"}
 - Level: ${profile?.level || 1} | XP: ${profile?.xp || 0}
 - Study streak: ${profile?.streak_days || goal?.streak_days || 0} days
@@ -417,26 +591,67 @@ ${courseList}
 Recent diagnostic scores:
 ${diagnosticList}
 
-Always address the student by name. Use their data to give personalized, specific advice.
+Address the student by name when natural. Align with facts from shared context from other assistants when relevant.
 `;
 
-    // ── Call Groq ─────────────────────────────────────────────────────────────
-    const messages = [
-      { role: "system", content: agent.systemPrompt + "\n\n" + studentContext },
-      ...history,
-      { role: "user", content: message },
-    ];
+    const systemContent = `${agent.systemPrompt}${crossSection}\n${studentContext}\n${JSON_FORMAT_RULE}`;
 
-    const reply = await chat(messages);
+    const groqMessages = [{ role: "system", content: systemContent }, ...threadForModel];
 
-    // ── Log activity ──────────────────────────────────────────────────────────
+    const raw = await groqAgentStructuredJson(groqMessages);
+    const { reply, courseSuggestion: csRaw } = parseAgentStructuredOutput(raw);
+    const normalizedSuggestion = normalizeAgentCourseSuggestion(csRaw);
+
+    let courseSuggestion = normalizedSuggestion;
+    if (normalizedSuggestion) {
+      const { data: inserted, error: sugErr } = await authed
+        .from("course_suggestions")
+        .insert({
+          user_id: req.user.id,
+          conversation_id: conversationId,
+          agent_id: agentId,
+          topic: normalizedSuggestion.topic,
+          level: normalizedSuggestion.level,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (!sugErr && inserted?.id) {
+        courseSuggestion = { ...normalizedSuggestion, id: inserted.id };
+      } else if (sugErr) {
+        console.warn("course_suggestions insert skipped:", sugErr.message);
+      }
+    }
+
+    const { error: asstInsErr } = await authed.from("ai_messages").insert({
+      conversation_id: conversationId,
+      user_id: req.user.id,
+      agent_id: agentId,
+      role: "assistant",
+      content: reply,
+    });
+
+    if (asstInsErr) {
+      console.error("ai_messages assistant insert:", asstInsErr);
+    }
+
+    await authed
+      .from("ai_conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .eq("user_id", req.user.id);
+
     await supabase.from("activity_logs").insert({
       user_id: req.user.id,
       type: "agent_chat",
       description: `Chatted with ${agent.name}`,
     });
 
-    return res.status(200).json({ success: true, data: { reply } });
+    return res.status(200).json({
+      success: true,
+      data: { reply, courseSuggestion },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

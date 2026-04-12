@@ -3,6 +3,7 @@ import {
   getUserCourses,
   createCourse,
   getCourseById,
+  submitEntryQuiz,
   deleteCourse,
   completeChapter,
   submitQuiz,
@@ -16,6 +17,7 @@ router.use(authenticateUser);
 
 router.get("/", getUserCourses);
 router.post("/", createCourse);
+router.post("/:courseId/entry-quiz/submit", submitEntryQuiz);
 router.get("/:id", getCourseById);
 router.delete("/:id", deleteCourse);
 router.patch("/:courseId/chapters/:chapterId/complete", completeChapter);

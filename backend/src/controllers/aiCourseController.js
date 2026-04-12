@@ -1,5 +1,10 @@
 import supabase from "../config/supabaseClient.js";
 import { getAuthedSupabaseClient } from "../utils/supabaseAuthedClient.js";
+import {
+  courseLevelFromXp,
+  computeEnergyAfterRefill,
+  answerMatches,
+} from "../utils/gamification.js";
 
 /**
  * GET /api/ai-courses
@@ -42,7 +47,7 @@ export const getUserCourses = async (req, res) => {
  */
 export const createCourse = async (req, res) => {
   try {
-    const { title, subject, description, chapters } = req.body;
+    const { title, subject, description, chapters, entry_quiz } = req.body;
 
     if (!title || !chapters || chapters.length === 0) {
       return res.status(400).json({
@@ -52,6 +57,11 @@ export const createCourse = async (req, res) => {
     }
 
     const db = getAuthedSupabaseClient(req.accessToken);
+
+    const hasEntryQuiz =
+      entry_quiz &&
+      Array.isArray(entry_quiz.questions) &&
+      entry_quiz.questions.length > 0;
 
     // Create the course
     const { data: course, error: courseError } = await db
@@ -63,6 +73,11 @@ export const createCourse = async (req, res) => {
         description,
         total_chapters: chapters.length,
         completed_chapters: 0,
+        entry_quiz: hasEntryQuiz ? entry_quiz : null,
+        entry_quiz_passed: !hasEntryQuiz,
+        entry_quiz_score: null,
+        course_xp: 0,
+        course_level: 1,
       })
       .select()
       .single();
@@ -153,6 +168,96 @@ export const getCourseById = async (req, res) => {
 };
 
 /**
+ * POST /api/ai-courses/:courseId/entry-quiz/submit
+ * Body: { answers: string[] } — one answer per question (e.g. "A" or full option text)
+ */
+export const submitEntryQuiz = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { answers } = req.body ?? {};
+
+    if (!Array.isArray(answers)) {
+      return res.status(400).json({ success: false, message: "answers array is required" });
+    }
+
+    const db = getAuthedSupabaseClient(req.accessToken);
+    const { data: course, error: fetchErr } = await db
+      .from("ai_courses")
+      .select("id, entry_quiz, entry_quiz_passed")
+      .eq("id", courseId)
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (fetchErr || !course) {
+      return res.status(404).json({ success: false, message: "Course not found" });
+    }
+
+    if (course.entry_quiz_passed) {
+      return res.status(200).json({
+        success: true,
+        message: "Placement already completed",
+        data: { passed: true, score: 100 },
+      });
+    }
+
+    const questions = course.entry_quiz?.questions;
+    if (!questions?.length) {
+      return res.status(400).json({ success: false, message: "This course has no placement quiz" });
+    }
+
+    let correct = 0;
+    questions.forEach((q, i) => {
+      if (answerMatches(q.answer, answers[i], q.options || [])) correct += 1;
+    });
+    const score = Math.round((correct / questions.length) * 100);
+    const passed = score >= 60;
+
+    await db
+      .from("ai_courses")
+      .update({
+        entry_quiz_passed: passed,
+        entry_quiz_score: score,
+      })
+      .eq("id", courseId)
+      .eq("user_id", req.user.id);
+
+    let courseXpInfo = null;
+    if (passed) {
+      courseXpInfo = await awardCourseXp(req.user.id, courseId, 30);
+      await awardXP(req.user.id, 25);
+      await logActivity(
+        req.user.id,
+        "entry_quiz_passed",
+        `Passed placement quiz for course (${score}%)`
+      );
+    } else {
+      await logActivity(
+        req.user.id,
+        "entry_quiz_failed",
+        `Placement quiz attempt (${score}%)`
+      );
+      await deductEnergyBy(req.user.id, 1);
+    }
+
+    const energyState = await syncUserEnergyRow(req.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: passed ? "Placement passed — chapters unlocked!" : "Keep practicing and try again.",
+      data: {
+        score,
+        passed,
+        energy: energyState?.energy,
+        course_xp: courseXpInfo?.course_xp,
+        course_level: courseXpInfo?.course_level,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * DELETE /api/ai-courses/:id
  * Delete a course
  */
@@ -215,10 +320,17 @@ export const completeChapter = async (req, res) => {
     // Log activity
     await logActivity(req.user.id, "chapter_completed", `Completed a chapter`);
 
+    const courseXpInfo = await awardCourseXp(req.user.id, courseId, 15);
+    await awardXP(req.user.id, 10);
+
     return res.status(200).json({
       success: true,
       message: "Chapter marked as complete",
-      data: { completed_chapters: completedCount },
+      data: {
+        completed_chapters: completedCount,
+        course_xp: courseXpInfo?.course_xp,
+        course_level: courseXpInfo?.course_level,
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -243,6 +355,8 @@ export const submitQuiz = async (req, res) => {
 
     const passed = score >= 60;
 
+    await syncUserEnergyRow(req.user.id);
+
     const db = getAuthedSupabaseClient(req.accessToken);
     const { error } = await db
       .from("quizzes")
@@ -263,15 +377,28 @@ export const submitQuiz = async (req, res) => {
       `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
     );
 
-    // Award XP if passed
+    let courseXpInfo = null;
     if (passed) {
       await awardXP(req.user.id, 50);
+      courseXpInfo = await awardCourseXp(req.user.id, courseId, 40);
+    } else {
+      await deductEnergyBy(req.user.id, 1);
     }
+
+    const energyState = await syncUserEnergyRow(req.user.id);
 
     return res.status(200).json({
       success: true,
-      message: passed ? "Quiz passed! +50 XP" : "Quiz failed. Try again!",
-      data: { score, passed },
+      message: passed
+        ? "Quiz passed! +50 XP, course XP gained"
+        : "Quiz failed. You lost 1 energy — it refills over time.",
+      data: {
+        score,
+        passed,
+        energy: energyState?.energy,
+        course_xp: courseXpInfo?.course_xp,
+        course_level: courseXpInfo?.course_level,
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -279,6 +406,58 @@ export const submitQuiz = async (req, res) => {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function awardCourseXp(userId, courseId, amount) {
+  const { data: c } = await supabase
+    .from("ai_courses")
+    .select("course_xp")
+    .eq("id", courseId)
+    .eq("user_id", userId)
+    .single();
+
+  if (!c) return null;
+
+  const newXp = (c.course_xp || 0) + amount;
+  const level = courseLevelFromXp(newXp);
+
+  await supabase
+    .from("ai_courses")
+    .update({ course_xp: newXp, course_level: level })
+    .eq("id", courseId)
+    .eq("user_id", userId);
+
+  return { course_xp: newXp, course_level: level };
+}
+
+async function syncUserEnergyRow(userId) {
+  const { data: row } = await supabase
+    .from("users")
+    .select("energy, max_energy, last_energy_refill_at")
+    .eq("id", userId)
+    .single();
+
+  if (!row) return null;
+
+  const next = computeEnergyAfterRefill(row);
+  if (next.energy !== row.energy || next.last_energy_refill_at !== row.last_energy_refill_at) {
+    await supabase
+      .from("users")
+      .update({
+        energy: next.energy,
+        last_energy_refill_at: next.last_energy_refill_at,
+      })
+      .eq("id", userId);
+  }
+  return next;
+}
+
+async function deductEnergyBy(userId, amount) {
+  const state = await syncUserEnergyRow(userId);
+  if (!state) return null;
+  const newE = Math.max(0, state.energy - amount);
+  await supabase.from("users").update({ energy: newE }).eq("id", userId);
+  return { ...state, energy: newE };
+}
 
 async function logActivity(userId, type, description) {
   await supabase.from("activity_logs").insert({

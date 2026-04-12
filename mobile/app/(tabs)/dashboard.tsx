@@ -32,6 +32,9 @@ interface AICourse {
   total_chapters: number;
   completed_chapters: number;
   created_at: string;
+  course_level?: number;
+  course_xp?: number;
+  entry_quiz_passed?: boolean;
 }
 
 interface Profile {
@@ -40,6 +43,8 @@ interface Profile {
   level: number;
   streak_days: number;
   study_hours: number;
+  energy?: number;
+  max_energy?: number;
 }
 
 export default function Dashboard() {
@@ -121,9 +126,17 @@ export default function Dashboard() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Welcome back 👋</Text>
             <Text style={styles.name}>{displayName}</Text>
+            {profile?.energy != null && profile?.max_energy != null && (
+              <View style={styles.energyRow}>
+                <Ionicons name="flash" size={14} color="#f97316" />
+                <Text style={styles.energyText}>
+                  Energy {profile.energy}/{profile.max_energy}
+                </Text>
+              </View>
+            )}
           </View>
           <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
             <View style={styles.avatar}>
@@ -295,6 +308,13 @@ export default function Dashboard() {
                           <View style={[styles.moodleBadge, { backgroundColor: PRIMARY + "20" }]}>
                             <Text style={[styles.moodleBadgeText, { color: PRIMARY }]}>AI</Text>
                           </View>
+                          {course.course_level != null && course.course_level > 0 && (
+                            <View style={[styles.moodleBadge, { backgroundColor: "#8b5cf620" }]}>
+                              <Text style={[styles.moodleBadgeText, { color: "#8b5cf6" }]}>
+                                Lv.{course.course_level}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                         <Text style={styles.courseSubtitle}>{course.subject}</Text>
                         <View style={styles.progressBarBg}>
@@ -363,6 +383,8 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 14, color: "#666" },
   name: { fontSize: 20, fontWeight: "bold", color: "#333", marginTop: 2 },
+  energyRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
+  energyText: { fontSize: 12, color: "#666", fontWeight: "600" },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
