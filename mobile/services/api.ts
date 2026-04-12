@@ -88,6 +88,21 @@ export const apiChatWithAI = (message: string, history: { role: string; content:
 
 export const apiGenerateCourse = (topic: string, level = "beginner") =>
   authRequest("POST", "/api/ai/generate-course", { topic, level });
+
+export const apiGenerateDiagnostic = (subject: string) =>
+  authRequest("POST", "/api/ai/diagnostic", { subject });
+
+export const apiGenerateStudyPlan = (
+  subjects: string[],
+  dailyHours = 2,
+  diagnosticResults: any[] = []
+) =>
+  authRequest("POST", "/api/ai/study-plan", {
+    subjects,
+    dailyHours,
+    diagnosticResults,
+  });
+
 export const apiGenerateQuizFromFile = (fileText: string, fileName: string) =>
   authRequest("POST", "/api/ai/quiz-from-file", { fileText, fileName });
 
