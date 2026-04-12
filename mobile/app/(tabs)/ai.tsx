@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -89,6 +89,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   isLoading?: boolean;
+  /** Tap-to-continue prompts from the agent (last reply only) */
+  followUps?: string[];
 }
 
 type Conversation = {
@@ -127,6 +129,7 @@ const WELCOME: Record<string, string> = {
 
 export default function AIScreen() {
   const insets = useSafeAreaInsets();
+  const msgScrollRef = useRef<ScrollView>(null);
   const [selectedAgent, setSelectedAgent] = useState<typeof AGENTS[0] | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -242,9 +245,15 @@ export default function AIScreen() {
     try {
       const res = await apiAgentChat(selectedAgent.id, text, activeConversationId);
 
+      const followUps = ((res.data as { suggestedFollowUps?: string[] })?.suggestedFollowUps ?? []).slice(
+        0,
+        4
+      );
       setMessages((prev) =>
         prev.map((m) =>
-          m.isLoading ? { ...m, content: res.data.reply, isLoading: false } : m
+          m.isLoading
+            ? { ...m, content: res.data.reply, followUps, isLoading: false }
+            : m
         )
       );
 
@@ -453,10 +462,12 @@ export default function AIScreen() {
 
               {/* Messages */}
               <ScrollView
+                ref={msgScrollRef}
                 style={styles.msgContainer}
                 contentContainerStyle={[styles.msgContent, { paddingBottom: insets.bottom + 88 }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+                onContentSizeChange={() => msgScrollRef.current?.scrollToEnd({ animated: true })}
               >
                 {messages.map((msg) => (
                   <View
@@ -482,9 +493,29 @@ export default function AIScreen() {
                           <Text style={{ fontSize: 13, color: "#999" }}>Thinking...</Text>
                         </View>
                       ) : (
-                        <Text style={[styles.msgText, msg.role === "user" ? { color: "white" } : { color: "#333" }]}>
-                          {msg.content}
-                        </Text>
+                        <>
+                          <Text style={[styles.msgText, msg.role === "user" ? { color: "white" } : { color: "#333" }]}>
+                            {msg.content}
+                          </Text>
+                          {msg.role === "assistant" && msg.followUps && msg.followUps.length > 0 && (
+                            <ScrollView
+                              horizontal
+                              showsHorizontalScrollIndicator={false}
+                              style={styles.chipScroll}
+                              contentContainerStyle={styles.chipRow}
+                            >
+                              {msg.followUps.map((chip, ci) => (
+                                <TouchableOpacity
+                                  key={`${msg.id}-chip-${ci}`}
+                                  style={[styles.chip, { borderColor: selectedAgent.color }]}
+                                  onPress={() => setInput(chip)}
+                                >
+                                  <Text style={[styles.chipText, { color: selectedAgent.color }]}>{chip}</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          )}
+                        </>
                       )}
                     </View>
                   </View>
@@ -557,6 +588,16 @@ const styles = StyleSheet.create({
   userInner: { borderBottomRightRadius: 4 },
   aiInner: { backgroundColor: "white", borderBottomLeftRadius: 4, elevation: 1 },
   msgText: { fontSize: 14, lineHeight: 22 },
+  chipScroll: { marginTop: 10, maxHeight: 44 },
+  chipRow: { flexDirection: "row", gap: 8, alignItems: "center", paddingRight: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: "#fafafa",
+  },
+  chipText: { fontSize: 12, fontWeight: "600" },
   inputRow: { flexDirection: "row", alignItems: "flex-end", padding: 12, backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10 },
   textInput: { flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333", maxHeight: 100, textAlignVertical: "center" },
   sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },

@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { apiCompleteChapter, apiSubmitQuiz, apiLogActivity, apiGetCourse } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 import EntryQuizGate from "@/components/EntryQuizGate";
+import ChapterQuizModal, { ChapterQuizQuestion } from "@/components/ChapterQuizModal";
 
 const PRIMARY = "#9cd21f";
 
@@ -28,6 +29,7 @@ interface Chapter {
   quiz_passed: boolean;
   quiz_score: number | null;
   is_assignment?: boolean;
+  quiz_questions?: ChapterQuizQuestion[] | null;
 }
 
 interface Course {
@@ -57,6 +59,12 @@ export default function CourseDetail() {
   const [loadingChapter, setLoadingChapter] = useState<string | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState<string | null>(null);
   const [quizModalVisible, setQuizModalVisible] = useState(false);
+  const [chapterQuizModal, setChapterQuizModal] = useState<{
+    quizId: string;
+    chapterId: string;
+    chapterTitle: string;
+    questions: ChapterQuizQuestion[];
+  } | null>(null);
 
   useEffect(() => {
     if (courseId) fetchCourse();
@@ -78,6 +86,7 @@ export default function CourseDetail() {
         quiz_passed: c.quizzes?.[0]?.passed || false,
         quiz_score: c.quizzes?.[0]?.score || null,
         is_assignment: c.is_assignment || false,
+        quiz_questions: Array.isArray(c.quizzes?.[0]?.questions) ? c.quizzes[0].questions : null,
       }));
       setCourse({
         id: data.id,
@@ -130,29 +139,40 @@ export default function CourseDetail() {
     }
   };
 
-  const submitQuizScore = async (quizId: string, chapterId: string, score: number) => {
+  const applyQuizResult = async (
+    quizId: string,
+    chapterId: string,
+    score: number,
+    passed: boolean,
+    extra?: { energy?: number; course_xp?: number; course_level?: number }
+  ) => {
+    if (!course) return;
+    await apiLogActivity(
+      passed ? "quiz_passed" : "quiz_failed",
+      `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
+    );
+    setCourse((prev) =>
+      prev
+        ? {
+            ...prev,
+            course_xp: extra?.course_xp ?? prev.course_xp,
+            course_level: extra?.course_level ?? prev.course_level,
+            chapters: prev.chapters.map((c) =>
+              c.id === chapterId ? { ...c, quiz_score: score, quiz_passed: passed } : c
+            ),
+          }
+        : prev
+    );
+  };
+
+  const submitQuizManualScore = async (quizId: string, chapterId: string, score: number) => {
     if (!course) return;
     try {
       setLoadingQuiz(quizId);
-      const sub = await apiSubmitQuiz(course.id, quizId, score);
+      const sub = await apiSubmitQuiz(course.id, quizId, { score });
       const passed = score >= 60;
       const extra = sub.data as { energy?: number; course_xp?: number; course_level?: number } | undefined;
-      await apiLogActivity(
-        passed ? "quiz_passed" : "quiz_failed",
-        `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
-      );
-      setCourse((prev) =>
-        prev
-          ? {
-              ...prev,
-              course_xp: extra?.course_xp ?? prev.course_xp,
-              course_level: extra?.course_level ?? prev.course_level,
-              chapters: prev.chapters.map((c) =>
-                c.id === chapterId ? { ...c, quiz_score: score, quiz_passed: passed } : c
-              ),
-            }
-          : prev
-      );
+      await applyQuizResult(quizId, chapterId, score, passed, extra);
       Alert.alert(
         passed ? "Quiz Passed! 🎉" : "Quiz Failed 😔",
         passed
@@ -172,13 +192,21 @@ export default function CourseDetail() {
       return;
     }
     if (!chapter.quiz_id) return;
-    const quizId = chapter.quiz_id;
-    const chapterId = chapter.id;
-    Alert.alert("Submit Quiz Score", "Choose your score", [
+    const qs = chapter.quiz_questions;
+    if (qs && qs.length > 0) {
+      setChapterQuizModal({
+        quizId: chapter.quiz_id,
+        chapterId: chapter.id,
+        chapterTitle: chapter.title,
+        questions: qs,
+      });
+      return;
+    }
+    Alert.alert("Quick score (legacy)", "This quiz has no stored questions. Pick a result to test the flow:", [
       { text: "Cancel", style: "cancel" },
-      { text: "60%", onPress: () => submitQuizScore(quizId, chapterId, 60) },
-      { text: "85%", onPress: () => submitQuizScore(quizId, chapterId, 85) },
-      { text: "100%", onPress: () => submitQuizScore(quizId, chapterId, 100) },
+      { text: "60%", onPress: () => submitQuizManualScore(chapter.quiz_id!, chapter.id, 60) },
+      { text: "85%", onPress: () => submitQuizManualScore(chapter.quiz_id!, chapter.id, 85) },
+      { text: "100%", onPress: () => submitQuizManualScore(chapter.quiz_id!, chapter.id, 100) },
     ]);
   };
 
@@ -443,6 +471,25 @@ export default function CourseDetail() {
           </View>
         )}
       </ScrollView>
+
+      <ChapterQuizModal
+        visible={!!chapterQuizModal}
+        onClose={() => setChapterQuizModal(null)}
+        courseId={course.id}
+        quizId={chapterQuizModal?.quizId ?? ""}
+        chapterTitle={chapterQuizModal?.chapterTitle ?? ""}
+        questions={chapterQuizModal?.questions ?? []}
+        onGraded={async (payload) => {
+          if (!chapterQuizModal) return;
+          await applyQuizResult(
+            chapterQuizModal.quizId,
+            chapterQuizModal.chapterId,
+            payload.score,
+            payload.passed,
+            payload
+          );
+        }}
+      />
 
       <FileQuizModal visible={quizModalVisible} onClose={() => setQuizModalVisible(false)} />
     </SafeAreaView>

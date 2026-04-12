@@ -344,24 +344,68 @@ export const completeChapter = async (req, res) => {
 export const submitQuiz = async (req, res) => {
   try {
     const { courseId, quizId } = req.params;
-    const { score } = req.body;
-
-    if (score === undefined || score < 0 || score > 100) {
-      return res.status(400).json({
-        success: false,
-        message: "Score must be between 0 and 100",
-      });
-    }
-
-    const passed = score >= 60;
+    const { score, answers } = req.body ?? {};
 
     await syncUserEnergyRow(req.user.id);
 
     const db = getAuthedSupabaseClient(req.accessToken);
+
+    let finalScore;
+
+    if (Array.isArray(answers)) {
+      const { data: quizRow, error: qErr } = await db
+        .from("quizzes")
+        .select("questions")
+        .eq("id", quizId)
+        .eq("course_id", courseId)
+        .single();
+
+      if (qErr || !quizRow) {
+        return res.status(404).json({ success: false, message: "Quiz not found" });
+      }
+
+      const questions = quizRow.questions || [];
+      if (!questions.length) {
+        return res.status(400).json({
+          success: false,
+          message: "This quiz has no questions. Regenerate the course or submit a score manually.",
+        });
+      }
+
+      if (answers.length !== questions.length) {
+        return res.status(400).json({
+          success: false,
+          message: `Provide exactly ${questions.length} answers`,
+        });
+      }
+
+      let correct = 0;
+      questions.forEach((q, i) => {
+        if (answerMatches(q.answer, answers[i], q.options || [])) correct += 1;
+      });
+      finalScore = Math.round((correct / questions.length) * 100);
+    } else if (typeof score === "number") {
+      finalScore = score;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Send either { answers: string[] } for graded quiz or { score: number }",
+      });
+    }
+
+    if (finalScore < 0 || finalScore > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Computed score must be between 0 and 100",
+      });
+    }
+
+    const passed = finalScore >= 60;
+
     const { error } = await db
       .from("quizzes")
       .update({
-        score,
+        score: finalScore,
         passed,
         completed_at: new Date().toISOString(),
       })
@@ -370,11 +414,10 @@ export const submitQuiz = async (req, res) => {
 
     if (error) throw error;
 
-    // Log activity
     await logActivity(
       req.user.id,
       passed ? "quiz_passed" : "quiz_failed",
-      `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
+      `Quiz score: ${finalScore}% — ${passed ? "Passed ✅" : "Failed ❌"}`
     );
 
     let courseXpInfo = null;
@@ -393,7 +436,7 @@ export const submitQuiz = async (req, res) => {
         ? "Quiz passed! +50 XP, course XP gained"
         : "Quiz failed. You lost 1 energy — it refills over time.",
       data: {
-        score,
+        score: finalScore,
         passed,
         energy: energyState?.energy,
         course_xp: courseXpInfo?.course_xp,
