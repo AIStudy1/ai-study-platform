@@ -21,7 +21,6 @@ import {
   apiListConversations,
   apiGenerateCourse,
   apiCreateCourse,
-  apiPatchCourseSuggestion,
 } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 
@@ -258,11 +257,6 @@ export default function AIScreen() {
         suggestion?.shouldSuggest && suggestion?.topic ? suggestion : fallbackSuggestion;
 
       if (finalSuggestion?.shouldSuggest && finalSuggestion?.topic) {
-        const suggestionRowId =
-          "id" in finalSuggestion && typeof (finalSuggestion as { id?: string }).id === "string"
-            ? (finalSuggestion as { id: string }).id
-            : undefined;
-
         Alert.alert(
           "Add as AI course?",
           `Generate a full course about:\n${finalSuggestion.topic}`,
@@ -275,33 +269,16 @@ export default function AIScreen() {
                   setAddingCourse(true);
                   const gen = await apiGenerateCourse(finalSuggestion.topic, finalSuggestion.level ?? "beginner");
                   const course = gen.data;
-                  const created = await apiCreateCourse({
+                  await apiCreateCourse({
                     title: course.title,
                     subject: course.subject,
                     description: course.description,
-                    entry_quiz: course.entry_quiz?.questions?.length ? course.entry_quiz : undefined,
                     chapters: (course.chapters ?? []).map((ch: any) => ({
                       title: ch.title,
                       content: ch.content,
-                      quiz:
-                        ch.quiz?.questions?.length
-                          ? {
-                              title: ch.quiz.title || `Quiz: ${ch.title}`,
-                              questions: ch.quiz.questions,
-                            }
-                          : ch.quiz?.title
-                            ? { title: ch.quiz.title, questions: ch.quiz.questions || [] }
-                            : undefined,
+                      quiz: ch.quiz?.title ? { title: ch.quiz.title } : undefined,
                     })),
                   });
-                  const courseId = (created as { data?: { id?: string } })?.data?.id;
-                  if (suggestionRowId && courseId) {
-                    try {
-                      await apiPatchCourseSuggestion(suggestionRowId, { status: "created", courseId });
-                    } catch {
-                      /* linking suggestion is best-effort */
-                    }
-                  }
                   setMessages((prev) => [
                     ...prev,
                     { id: genId(), role: "assistant", content: `✅ Course added: ${course.title}` },

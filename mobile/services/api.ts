@@ -44,19 +44,8 @@ export const apiCreateCourse = (course: {
   title: string;
   subject: string;
   description: string;
-  entry_quiz?: {
-    title?: string;
-    questions: { question: string; options: string[]; answer: string }[];
-  };
-  chapters: {
-    title: string;
-    content: string;
-    quiz?: { title: string; questions?: { question: string; options: string[]; answer: string }[] };
-  }[];
+  chapters: { title: string; content: string; quiz?: { title: string } }[];
 }) => authRequest("POST", "/api/ai-courses", course);
-
-export const apiSubmitEntryQuiz = (courseId: string, answers: string[]) =>
-  authRequest("POST", `/api/ai-courses/${courseId}/entry-quiz/submit`, { answers });
 
 export const apiDeleteCourse = (id: string) =>
   authRequest("DELETE", `/api/ai-courses/${id}`);
@@ -157,23 +146,6 @@ export const apiCreateConversation = (agentId: string, title?: string) =>
 export const apiGetConversationMessages = (conversationId: string) =>
   authRequest("GET", `/api/ai/conversations/${conversationId}/messages`);
 
-export const apiListCourseSuggestions = (status?: string) =>
-  authRequest(
-    "GET",
-    status
-      ? `/api/ai/course-suggestions?status=${encodeURIComponent(status)}`
-      : "/api/ai/course-suggestions"
-  );
-
-export const apiPatchCourseSuggestion = (
-  id: string,
-  body: { status?: string; courseId?: string }
-) =>
-  authRequest("PATCH", `/api/ai/course-suggestions/${id}`, {
-    status: body.status,
-    courseId: body.courseId,
-  });
-
 export const apiAgentChat = (
   agentId: string,
   message: string,
@@ -188,3 +160,5 @@ export const apiAgentChat = (
     attachmentText,
     attachmentName,
   });
+  export const apiGenerateDiagnostic = (subject: string) =>
+  authRequest("POST", "/api/ai/diagnostic", { subject });

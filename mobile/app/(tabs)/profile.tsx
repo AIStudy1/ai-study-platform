@@ -27,8 +27,6 @@ interface UserProfile {
   streak_days: number;
   study_hours: number;
   avatar_url: string | null;
-  energy?: number;
-  max_energy?: number;
 }
 
 export default function Profile() {
@@ -257,20 +255,11 @@ export default function Profile() {
             <Text style={styles.statLabel}>Day Streak</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="flash" size={24} color="#eab308" />
-            <Text style={styles.statNumber}>
-              {profile?.energy != null && profile?.max_energy != null
-                ? `${profile.energy}/${profile.max_energy}`
-                : "—"}
-            </Text>
-            <Text style={styles.statLabel}>Energy</Text>
+            <MaterialIcons name="task-alt" size={24} color="#22c55e" />
+            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statLabel}>Courses</Text>
           </View>
         </View>
-        {profile?.energy != null && (
-          <Text style={styles.energyHint}>
-            Energy refills over time (about +1 every 30 minutes, up to your max). Failed quizzes cost 1 energy.
-          </Text>
-        )}
 
         {/* Quick Links */}
         <View style={styles.section}>
@@ -469,13 +458,6 @@ const styles = StyleSheet.create({
   statCard: { alignItems: "center" },
   statNumber: { fontSize: 18, fontWeight: "bold", marginTop: 4 },
   statLabel: { fontSize: 12, color: "#666" },
-  energyHint: {
-    fontSize: 12,
-    color: "#888",
-    paddingHorizontal: 20,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
   section: { paddingHorizontal: 16, marginBottom: 8 },
   sectionTitle: {
     fontSize: 18,

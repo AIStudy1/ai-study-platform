@@ -1,5 +1,4 @@
 import supabase from "../config/supabaseClient.js";
-import { computeEnergyAfterRefill } from "../utils/gamification.js";
 
 /**
  * GET /api/user/profile
@@ -9,28 +8,11 @@ export const getProfile = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("users")
-      .select(
-        "id, full_name, email, role, xp, level, streak_days, study_hours, avatar_url, created_at, energy, max_energy, last_energy_refill_at"
-      )
+      .select("id, full_name, email, role, xp, level, streak_days, study_hours, avatar_url, created_at")
       .eq("id", req.user.id)
       .single();
 
     if (error) throw error;
-
-    if (data && data.energy != null) {
-      const next = computeEnergyAfterRefill(data);
-      if (next.energy !== data.energy || next.last_energy_refill_at !== data.last_energy_refill_at) {
-        await supabase
-          .from("users")
-          .update({
-            energy: next.energy,
-            last_energy_refill_at: next.last_energy_refill_at,
-          })
-          .eq("id", req.user.id);
-        data.energy = next.energy;
-        data.last_energy_refill_at = next.last_energy_refill_at;
-      }
-    }
 
     return res.status(200).json({ success: true, data });
   } catch (error) {

@@ -13,7 +13,6 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { apiCompleteChapter, apiSubmitQuiz, apiLogActivity, apiGetCourse } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
-import EntryQuizGate from "@/components/EntryQuizGate";
 
 const PRIMARY = "#9cd21f";
 
@@ -39,11 +38,6 @@ interface Course {
   completed_chapters: number;
   type: string;
   chapters: Chapter[];
-  entry_quiz?: { title?: string; questions?: { question: string; options: string[]; answer: string }[] } | null;
-  entry_quiz_passed?: boolean;
-  entry_quiz_score?: number | null;
-  course_xp?: number;
-  course_level?: number;
 }
 
 type TabType = "chapters" | "quizzes" | "progress";
@@ -88,11 +82,6 @@ export default function CourseDetail() {
         completed_chapters: data.completed_chapters,
         type: data.type || "ai",
         chapters,
-        entry_quiz: data.entry_quiz,
-        entry_quiz_passed: data.entry_quiz_passed,
-        entry_quiz_score: data.entry_quiz_score,
-        course_xp: data.course_xp ?? 0,
-        course_level: data.course_level ?? 1,
       });
     } catch (error: any) {
       Alert.alert("Error", "Could not load course. Please try again.");
@@ -106,23 +95,20 @@ export default function CourseDetail() {
     if (!course) return;
     try {
       setLoadingChapter(chapterId);
-      const done = await apiCompleteChapter(course.id, chapterId);
+      await apiCompleteChapter(course.id, chapterId);
       await apiLogActivity("chapter_completed", `Completed chapter: ${chapterTitle} ✅`);
-      const xpPayload = done.data as { course_xp?: number; course_level?: number } | undefined;
       setCourse((prev) =>
         prev
           ? {
               ...prev,
               completed_chapters: prev.completed_chapters + 1,
-              course_xp: xpPayload?.course_xp ?? prev.course_xp,
-              course_level: xpPayload?.course_level ?? prev.course_level,
               chapters: prev.chapters.map((c) =>
                 c.id === chapterId ? { ...c, is_completed: true } : c
               ),
             }
           : prev
       );
-      Alert.alert("Chapter Complete! 🎉", "+10 XP · +15 course XP. Keep going!");
+      Alert.alert("Chapter Complete! 🎉", "Great job! Keep going!");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Could not mark chapter as complete");
     } finally {
@@ -134,9 +120,8 @@ export default function CourseDetail() {
     if (!course) return;
     try {
       setLoadingQuiz(quizId);
-      const sub = await apiSubmitQuiz(course.id, quizId, score);
+      await apiSubmitQuiz(course.id, quizId, score);
       const passed = score >= 60;
-      const extra = sub.data as { energy?: number; course_xp?: number; course_level?: number } | undefined;
       await apiLogActivity(
         passed ? "quiz_passed" : "quiz_failed",
         `Quiz score: ${score}% — ${passed ? "Passed ✅" : "Failed ❌"}`
@@ -145,8 +130,6 @@ export default function CourseDetail() {
         prev
           ? {
               ...prev,
-              course_xp: extra?.course_xp ?? prev.course_xp,
-              course_level: extra?.course_level ?? prev.course_level,
               chapters: prev.chapters.map((c) =>
                 c.id === chapterId ? { ...c, quiz_score: score, quiz_passed: passed } : c
               ),
@@ -155,9 +138,7 @@ export default function CourseDetail() {
       );
       Alert.alert(
         passed ? "Quiz Passed! 🎉" : "Quiz Failed 😔",
-        passed
-          ? `Score: ${score}% — +50 XP · +40 course XP${extra?.energy != null ? ` · Energy ${extra.energy}` : ""}`
-          : `Score: ${score}% — Try again!${extra?.energy != null ? ` Energy: ${extra.energy}` : ""}`
+        passed ? `Score: ${score}% — You earned 50 XP!` : `Score: ${score}% — You need 60% to pass. Try again!`
       );
     } catch (error: any) {
       Alert.alert("Error", error.message || "Could not submit quiz");
@@ -203,32 +184,6 @@ export default function CourseDetail() {
 
   if (!course) return null;
 
-  const entryQs = course.entry_quiz?.questions;
-  const needsPlacement =
-    Array.isArray(entryQs) && entryQs.length > 0 && !course.entry_quiz_passed;
-
-  if (needsPlacement && entryQs) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {course.title}
-          </Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <EntryQuizGate
-          courseId={course.id}
-          title={course.entry_quiz?.title || course.title}
-          questions={entryQs}
-          onPassed={() => fetchCourse()}
-        />
-      </SafeAreaView>
-    );
-  }
-
   const completedChapters = course.chapters.filter((c) => c.is_completed).length;
   const progressPercent = Math.round((completedChapters / course.chapters.length) * 100);
   const passedQuizzes = course.chapters.filter((c) => c.has_quiz && c.quiz_passed).length;
@@ -263,12 +218,6 @@ export default function CourseDetail() {
           </View>
           <Text style={styles.courseTitle}>{course.title}</Text>
           <Text style={styles.courseSubject}>{course.subject}</Text>
-          <View style={styles.levelRow}>
-            <View style={styles.levelPill}>
-              <Text style={styles.levelPillText}>Course Lv.{course.course_level ?? 1}</Text>
-            </View>
-            <Text style={styles.courseXpText}>{course.course_xp ?? 0} course XP</Text>
-          </View>
           <Text style={styles.courseDescription}>{course.description}</Text>
         </View>
 
@@ -463,21 +412,6 @@ const styles = StyleSheet.create({
   typeBadgeText: { fontSize: 12, fontWeight: "bold" },
   courseTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4 },
   courseSubject: { fontSize: 14, color: "#999", marginBottom: 12 },
-  levelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 10,
-    justifyContent: "center",
-  },
-  levelPill: {
-    backgroundColor: PRIMARY + "22",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  levelPillText: { fontSize: 12, fontWeight: "bold", color: PRIMARY },
-  courseXpText: { fontSize: 12, color: "#666" },
   courseDescription: { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 22 },
   progressCard: { backgroundColor: "white", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, elevation: 1 },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
