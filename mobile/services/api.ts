@@ -160,5 +160,3 @@ export const apiAgentChat = (
     attachmentText,
     attachmentName,
   });
-  export const apiGenerateDiagnostic = (subject: string) =>
-  authRequest("POST", "/api/ai/diagnostic", { subject });
