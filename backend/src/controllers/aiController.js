@@ -365,35 +365,36 @@ export const saveDiagnosticResult = async (req, res) => {
 const AGENTS = {
   tutor: {
     name: "Tutor",
-    systemPrompt: `You are an expert university tutor. Prioritize clarity over jargon. When a question is vague, ask ONE short clarifying question before explaining. Use short paragraphs or numbered steps. Give one concrete example per hard idea. Reference the student's courses/diagnostics when relevant to target weak areas. End with a quick check: suggest one thing they should try or verify. Never fabricate facts; if unsure, say so and suggest how to verify.`,
+    systemPrompt: `You are an expert university tutor. Explain concepts clearly, answer academic questions, and guide students through difficult material. Be encouraging, patient, and use examples. Keep responses concise. Use the student's diagnostic scores and course progress to focus on their weak areas.`,
   },
   course_builder: {
     name: "Course Builder",
-    systemPrompt: `You are a curriculum designer inside a learning app. Help refine vague topics into a sharp course title and scope. Ask for missing details (level, time per week, exam date) when needed—at most one or two questions at a time. Propose a chapter outline with learning outcomes. Mention if a topic overlaps something they already study (use context). Encourage them to generate the full AI course in-app when they are ready.`,
+    systemPrompt: `You are a curriculum designer. When a student gives you a topic, help them refine it then generate a structured course outline. Be specific about chapters and what each one covers. Use their current courses to avoid duplication and suggest complementary topics.`,
   },
   goals: {
     name: "Goals Coach",
-    systemPrompt: `You are a goals coach for university students. Turn dreams into actionable plans using SMART-style thinking (specific, measurable, time-bound) without sounding like a textbook. Break big goals into: long-term vision → this year → this month → this week → one thing to do today. Adapt difficulty to their XP/level and workload. Celebrate small wins; normalize setbacks.`,
+    systemPrompt: `You are a life and academic goals coach for university students. Help them define their dream goal then break it into: a 4-year roadmap, this semester's focus, this month's targets, this week's actions, today's first step. Be specific and motivating. Use their current level, XP and courses to make the roadmap realistic.`,
   },
   career: {
     name: "Career Advisor",
-    systemPrompt: `You are a career advisor. Give practical, field-aware advice using their courses and level. Prefer bullet lists for CV bullets, interview tips, and job-search steps. Tailor examples to their subject area when known. Be honest about competition and timelines. No guarantees about job offers.`,
+    systemPrompt: `You are a university career advisor. Help with CV writing, interview prep, internship hunting, LinkedIn optimization and career path planning. Use the student's courses and level to give field-specific advice.`,
   },
   wellness: {
     name: "Wellness Coach",
-    systemPrompt: `You are a supportive wellness coach for students—not a clinician. Validate feelings, reflect back what you heard, and offer coping tools (sleep, breaks, social connection, campus resources). Never diagnose disorders or prescribe medication. If the student mentions self-harm, hopelessness, or crisis, urge contacting local emergency services or a counselor immediately and keep your reply brief and caring.`,
+    systemPrompt: `You are a student wellness and mental health coach. Check in on how the student feels, detect stress or burnout, suggest coping strategies and healthy habits. Be warm and empathetic. Never diagnose. If the student's streak has dropped or scores are falling, gently acknowledge it. If someone seems in crisis always recommend speaking to a professional.`,
   },
   budget: {
     name: "Budget Advisor",
-    systemPrompt: `You are a practical money coach for students. Use simple numbers when they share amounts; otherwise give ranges and principles (50/30/20 as a starting idea, not a rule). Cover scholarships, part-time work tradeoffs, and avoiding scams. No personalized investment advice; encourage licensed advisors for big decisions.`,
+    systemPrompt: `You are a financial advisor for university students. Help with monthly budget planning, tracking expenses, saving tips and managing scholarships. Be practical and realistic about student budgets.`,
   },
 };
 
 const JSON_FORMAT_RULE = `
-OUTPUT FORMAT: Valid JSON only (no markdown fences). Shape:
-{"reply":"your full reply to the student","courseSuggestion":null,"suggestedFollowUps":["optional","short chip labels"]}
-- courseSuggestion: use {"shouldSuggest":true,"topic":"...","level":"beginner"|"intermediate"|"advanced"} only if they clearly want a new multi-chapter AI course in the app; else null.
-- suggestedFollowUps: 2–4 very short (under 8 words) next-step prompts the student could tap to continue (e.g. "Give me an example", "Quiz me on this"). Empty array [] if not needed.`;
+OUTPUT FORMAT: Respond with valid JSON only (no markdown code fences). Shape:
+{"reply":"your full natural reply (newlines allowed inside the string)","courseSuggestion":null}
+If the student clearly wants a new multi-chapter AI course in the app on a concrete topic, use:
+{"reply":"...","courseSuggestion":{"shouldSuggest":true,"topic":"short specific topic","level":"beginner"|"intermediate"|"advanced"}}
+Use courseSuggestion only when they want to learn/build/study a structured course on something specific; otherwise null.`;
 
 function clipAgentContent(s) {
   if (!s) return "";
@@ -423,36 +424,20 @@ function normalizeAgentCourseSuggestion(cs) {
   };
 }
 
-function normalizeSuggestedFollowUps(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr
-    .filter((s) => typeof s === "string" && s.trim().length > 0)
-    .map((s) => s.trim().slice(0, 120))
-    .slice(0, 4);
-}
-
 function parseAgentStructuredOutput(raw) {
   if (!raw || typeof raw !== "string") {
-    return {
-      reply: "Sorry, I could not produce a reply.",
-      courseSuggestion: null,
-      suggestedFollowUps: [],
-    };
+    return { reply: "Sorry, I could not produce a reply.", courseSuggestion: null };
   }
   const cleaned = raw.replace(/```json\s*|```/gi, "").trim();
   try {
     const o = JSON.parse(cleaned);
     if (o && typeof o.reply === "string") {
-      return {
-        reply: o.reply,
-        courseSuggestion: o.courseSuggestion ?? null,
-        suggestedFollowUps: normalizeSuggestedFollowUps(o.suggestedFollowUps),
-      };
+      return { reply: o.reply, courseSuggestion: o.courseSuggestion ?? null };
     }
   } catch {
     /* treat as plain text */
   }
-  return { reply: raw, courseSuggestion: null, suggestedFollowUps: [] };
+  return { reply: raw, courseSuggestion: null };
 }
 
 async function groqAgentStructuredJson(messages) {
@@ -614,7 +599,7 @@ Address the student by name when natural. Align with facts from shared context f
     const groqMessages = [{ role: "system", content: systemContent }, ...threadForModel];
 
     const raw = await groqAgentStructuredJson(groqMessages);
-    const { reply, courseSuggestion: csRaw, suggestedFollowUps } = parseAgentStructuredOutput(raw);
+    const { reply, courseSuggestion: csRaw } = parseAgentStructuredOutput(raw);
     const normalizedSuggestion = normalizeAgentCourseSuggestion(csRaw);
 
     let courseSuggestion = normalizedSuggestion;
@@ -665,7 +650,7 @@ Address the student by name when natural. Align with facts from shared context f
 
     return res.status(200).json({
       success: true,
-      data: { reply, courseSuggestion, suggestedFollowUps },
+      data: { reply, courseSuggestion },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

@@ -64,11 +64,8 @@ export const apiDeleteCourse = (id: string) =>
 export const apiCompleteChapter = (courseId: string, chapterId: string) =>
   authRequest("PATCH", `/api/ai-courses/${courseId}/chapters/${chapterId}/complete`);
 
-export const apiSubmitQuiz = (
-  courseId: string,
-  quizId: string,
-  payload: { score: number } | { answers: string[] }
-) => authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, payload);
+export const apiSubmitQuiz = (courseId: string, quizId: string, score: number) =>
+  authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, { score });
 
 // ─── Activity ────────────────────────────────────────────────────────────────
 
