@@ -51,7 +51,8 @@ app.get("/test-users", async (req, res) => {
 
 const PORT = process.env.PORT || 8000;
 
-const server = app.listen(PORT, () => {
+// Listen on all interfaces so phones / emulators can reach this machine via LAN IP.
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT} ✅`);
 }).on('error', (err) => {
   console.error('Server error:', err);
