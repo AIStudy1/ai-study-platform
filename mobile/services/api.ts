@@ -1,39 +1,7 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
 import { supabase } from "@/supabaseConfig";
 
-/**
- * API base URL. On a real phone, localhost points at the phone — use your PC's LAN IP.
- * Expo sets hostUri (e.g. 192.168.x.x:8081) while Metro runs; we reuse that IP for :8000.
- */
-function inferDevBackendUrl(): string | undefined {
-  const raw =
-    Constants.expoConfig?.hostUri ??
-    (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost;
-  if (typeof raw !== "string" || !raw.includes(":")) return undefined;
-  const host = raw.split(":")[0];
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return undefined;
-  return `http://${host}:8000`;
-}
+const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const BACKEND_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  inferDevBackendUrl() ??
-  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000");
-
-function networkErrorHelp(): string {
-  const isLocal =
-    BACKEND_URL.includes("localhost") ||
-    BACKEND_URL.includes("127.0.0.1") ||
-    BACKEND_URL.includes("10.0.2.2");
-  if (!isLocal) {
-    return ` Cannot reach ${BACKEND_URL}. Check VPN, firewall, and that the server is running.`;
-  }
-  return (
-    ` Cannot reach ${BACKEND_URL}. On a physical device use your computer's Wi‑Fi IP: create mobile/.env with EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8000` +
-    ` (same network as the phone). Ensure the backend is running and Windows Firewall allows port 8000.`
-  );
-}
 
 // Helper to get the auth token from Supabase session
 const getToken = async (): Promise<string | null> => {
@@ -50,20 +18,14 @@ const authRequest = async (
   const token = await getToken();
   if (!token) throw new Error("Not authenticated");
 
-  let response: Response;
-  try {
-    response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Network request failed";
-    throw new Error(`${msg}.${networkErrorHelp()}`);
-  }
+  const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
 
   const data = await response.json();
   if (!data.success) throw new Error(data.message);
@@ -172,19 +134,13 @@ export const apiUploadFile = async (fileUri: string, fileName: string, mimeType:
     type: mimeType,
   } as any);
 
-  let response: Response;
-  try {
-    response = await fetch(`${BACKEND_URL}/api/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Network request failed";
-    throw new Error(`${msg}.${networkErrorHelp()}`);
-  }
+  const response = await fetch(`${BACKEND_URL}/api/upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
 
   const data = await response.json();
   if (!data.success) throw new Error(data.message);
