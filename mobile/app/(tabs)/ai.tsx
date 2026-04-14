@@ -150,6 +150,7 @@ export default function AIScreen() {
     setConversationId(null);
     setMessages([{ id: "1", role: "assistant", content: WELCOME[agent.id] }]);
     setInput("");
+    // Open history selector so user can resume a previous chat like ChatGPT/Claude.
     setHistoryVisible(true);
   };
 
@@ -203,6 +204,7 @@ export default function AIScreen() {
         role: m.role,
         content: m.content,
       })) as Message[];
+
       setMessages(
         loaded.length > 0 ? loaded : [{ id: "1", role: "assistant", content: agentWelcome }]
       );
@@ -215,20 +217,10 @@ export default function AIScreen() {
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || !selectedAgent) return;
-
-    // Create conversation automatically if none exists
-    let activeConversationId = conversationId;
-    if (!activeConversationId) {
-      try {
-        const created = await apiCreateConversation(selectedAgent.id);
-        const conv = created.data as Conversation;
-        activeConversationId = conv.id;
-        setConversationId(conv.id);
-        await refreshConversations(selectedAgent.id);
-      } catch (e: any) {
-        Alert.alert("Error", "Could not start conversation.");
-        return;
-      }
+    if (!conversationId) {
+      // If the user didn't pick a thread, create one automatically.
+      await startNewChat();
+      if (!conversationId) return;
     }
 
     const userMsg: Message = { id: genId(), role: "user", content: text };
@@ -239,7 +231,7 @@ export default function AIScreen() {
     setSending(true);
 
     try {
-      const res = await apiAgentChat(selectedAgent.id, text, activeConversationId);
+      const res = await apiAgentChat(selectedAgent.id, text, conversationId as string);
 
       setMessages((prev) =>
         prev.map((m) =>
@@ -247,12 +239,12 @@ export default function AIScreen() {
         )
       );
 
-      // Course suggestion
       const suggestion = (res.data as any)?.courseSuggestion;
       const fallbackSuggestion =
         !suggestion?.shouldSuggest && looksLikeCourseIntent(text)
           ? { shouldSuggest: true, topic: text, level: "beginner" }
           : null;
+
       const finalSuggestion =
         suggestion?.shouldSuggest && suggestion?.topic ? suggestion : fallbackSuggestion;
 
@@ -267,7 +259,8 @@ export default function AIScreen() {
               onPress: async () => {
                 try {
                   setAddingCourse(true);
-                  const gen = await apiGenerateCourse(finalSuggestion.topic, finalSuggestion.level ?? "beginner");
+                  const level = finalSuggestion.level ?? "beginner";
+                  const gen = await apiGenerateCourse(finalSuggestion.topic, level);
                   const course = gen.data;
                   await apiCreateCourse({
                     title: course.title,
@@ -279,9 +272,14 @@ export default function AIScreen() {
                       quiz: ch.quiz?.title ? { title: ch.quiz.title } : undefined,
                     })),
                   });
+
                   setMessages((prev) => [
                     ...prev,
-                    { id: genId(), role: "assistant", content: `✅ Course added: ${course.title}` },
+                    {
+                      id: genId(),
+                      role: "assistant",
+                      content: `✅ Course added: ${course.title}`,
+                    },
                   ]);
                 } catch (e: any) {
                   Alert.alert("Course generation failed", e?.message || "Please try again.");
@@ -294,12 +292,25 @@ export default function AIScreen() {
         );
       }
 
+      // Auto-titles happen on backend after first message.
+      // Refresh so the Chats list shows the updated title immediately.
+      const newTitle = (res.data as any)?.conversationTitle;
+      if (newTitle) {
+        setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, title: newTitle } : c))
+        );
+      }
       await refreshConversations(selectedAgent.id);
     } catch (e: any) {
-      const errorMessage = e?.message || "Something went wrong. Please try again.";
+      // Show the real backend error so we can fix the root cause quickly.
+      const errorMessage =
+        e?.message || e?.toString?.() || "Something went wrong. Please try again.";
+      console.log("AI agent error:", errorMessage);
       setMessages((prev) =>
         prev.map((m) =>
-          m.isLoading ? { ...m, content: `Sorry: ${errorMessage}`, isLoading: false } : m
+          m.isLoading
+            ? { ...m, content: `Sorry: ${errorMessage}`, isLoading: false }
+            : m
         )
       );
     } finally {
@@ -353,6 +364,7 @@ export default function AIScreen() {
           <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
             <KeyboardAvoidingView
               style={{ flex: 1 }}
+              // Keep input visible when keyboard opens (especially iOS pageSheet modals).
               behavior={Platform.OS === "ios" ? "padding" : undefined}
               keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
             >
@@ -374,7 +386,7 @@ export default function AIScreen() {
                 <View style={[styles.onlineDot, { backgroundColor: selectedAgent.color }]} />
               </View>
 
-              {/* History Modal */}
+              {/* History picker (threads) */}
               <Modal visible={historyVisible} animationType="slide" presentationStyle="pageSheet">
                 <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
                   <View style={styles.historyHeader}>
@@ -394,7 +406,7 @@ export default function AIScreen() {
                       {loadingMessages ? (
                         <ActivityIndicator color="white" />
                       ) : (
-                        <Text style={styles.newChatBtnText}>+ New chat</Text>
+                        <Text style={styles.newChatBtnText}>New chat</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -416,7 +428,7 @@ export default function AIScreen() {
                             <Text style={styles.historyItemTitle} numberOfLines={1}>
                               {c.title || "Chat"}
                             </Text>
-                            <Text style={styles.historyItemMeta}>
+                            <Text style={styles.historyItemMeta} numberOfLines={1}>
                               {new Date(c.updated_at || c.created_at).toLocaleString()}
                             </Text>
                           </View>
@@ -438,7 +450,10 @@ export default function AIScreen() {
                 {messages.map((msg) => (
                   <View
                     key={msg.id}
-                    style={[styles.bubble, msg.role === "user" ? styles.userBubble : styles.aiBubble]}
+                    style={[
+                      styles.bubble,
+                      msg.role === "user" ? styles.userBubble : styles.aiBubble,
+                    ]}
                   >
                     {msg.role === "assistant" && (
                       <View style={[styles.aiAvatar, { backgroundColor: selectedAgent.bg }]}>
@@ -501,14 +516,27 @@ export default function AIScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, backgroundColor: "white" },
+  header: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    padding: 20, backgroundColor: "white",
+  },
   headerTitle: { fontSize: 26, fontWeight: "bold", color: "#333" },
   headerSubtitle: { fontSize: 13, color: "#666", marginTop: 2 },
-  quizBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center" },
+  quizBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center",
+  },
   list: { padding: 16, paddingBottom: 40 },
-  banner: { flexDirection: "row", alignItems: "center", backgroundColor: PRIMARY + "15", borderRadius: 12, padding: 12, marginBottom: 20, gap: 10, borderWidth: 1, borderColor: PRIMARY + "30" },
+  banner: {
+    flexDirection: "row", alignItems: "center", backgroundColor: PRIMARY + "15",
+    borderRadius: 12, padding: 12, marginBottom: 20, gap: 10,
+    borderWidth: 1, borderColor: PRIMARY + "30",
+  },
   bannerText: { fontSize: 13, color: "#444", flex: 1, lineHeight: 18 },
-  card: { backgroundColor: "white", borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 12, elevation: 1, gap: 14 },
+  card: {
+    backgroundColor: "white", borderRadius: 16, padding: 16,
+    flexDirection: "row", alignItems: "center", marginBottom: 12, elevation: 1, gap: 14,
+  },
   iconBox: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   emoji: { fontSize: 28 },
   cardInfo: { flex: 1 },
@@ -517,13 +545,26 @@ const styles = StyleSheet.create({
   tag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   tagText: { fontSize: 11, fontWeight: "600" },
   agentDesc: { fontSize: 13, color: "#666", lineHeight: 18 },
-  chatHeader: { flexDirection: "row", alignItems: "center", padding: 16, backgroundColor: "white", elevation: 2, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  chatHeader: {
+    flexDirection: "row", alignItems: "center", padding: 16,
+    backgroundColor: "white", elevation: 2, gap: 12,
+  },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
+  },
   chatIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   chatName: { fontSize: 16, fontWeight: "bold", color: "#333" },
   chatTagline: { fontSize: 12, color: "#999" },
   onlineDot: { width: 10, height: 10, borderRadius: 5 },
-  historyBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  historyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   msgContainer: { flex: 1, backgroundColor: "#f7f8f6" },
   msgContent: { padding: 16, paddingBottom: 8 },
   bubble: { flexDirection: "row", alignItems: "flex-end", marginBottom: 12 },
@@ -534,17 +575,38 @@ const styles = StyleSheet.create({
   userInner: { borderBottomRightRadius: 4 },
   aiInner: { backgroundColor: "white", borderBottomLeftRadius: 4, elevation: 1 },
   msgText: { fontSize: 14, lineHeight: 22 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", padding: 12, backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10 },
-  textInput: { flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333", maxHeight: 100, textAlignVertical: "center" },
+  inputRow: {
+    flexDirection: "row", alignItems: "flex-end", padding: 12,
+    backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10,
+  },
+  textInput: {
+    flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333", maxHeight: 100,
+    textAlignVertical: "center",
+  },
   sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
-  historyHeader: { flexDirection: "row", alignItems: "center", padding: 16, backgroundColor: "white", elevation: 2 },
+
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "white",
+    elevation: 2,
+  },
   historyTitle: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "bold", color: "#333" },
   historyActions: { padding: 16 },
   newChatBtn: { paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   newChatBtnText: { color: "white", fontWeight: "bold" },
   historyList: { padding: 16, paddingBottom: 30, gap: 10 },
   historyEmpty: { color: "#666", textAlign: "center", marginTop: 20 },
-  historyItem: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 10 },
+  historyItem: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   historyItemTitle: { fontSize: 14, fontWeight: "600", color: "#333" },
   historyItemMeta: { fontSize: 12, color: "#999", marginTop: 4 },
 });
