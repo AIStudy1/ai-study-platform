@@ -44,7 +44,14 @@ export const apiCreateCourse = (course: {
   title: string;
   subject: string;
   description: string;
-  chapters: { title: string; content: string; quiz?: { title: string } }[];
+  chapters: {
+    title: string;
+    content: string;
+    quiz?: {
+      title: string;
+      questions: { question: string; options: string[]; answer: string }[];
+    };
+  }[];
 }) => authRequest("POST", "/api/ai-courses", course);
 
 export const apiDeleteCourse = (id: string) =>
@@ -53,8 +60,16 @@ export const apiDeleteCourse = (id: string) =>
 export const apiCompleteChapter = (courseId: string, chapterId: string) =>
   authRequest("PATCH", `/api/ai-courses/${courseId}/chapters/${chapterId}/complete`);
 
-export const apiSubmitQuiz = (courseId: string, quizId: string, score: number) =>
-  authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, { score });
+export const apiSubmitQuiz = (
+  courseId: string,
+  quizId: string,
+  score: number,
+  chapterTitle?: string,
+  questions?: any[],
+  userAnswers?: string[]
+) => authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, {
+  score, chapterTitle, questions, userAnswers
+});
 
 // ─── Activity ────────────────────────────────────────────────────────────────
 

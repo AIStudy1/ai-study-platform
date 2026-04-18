@@ -267,10 +267,13 @@ export default function AIScreen() {
                     subject: course.subject,
                     description: course.description,
                     chapters: (course.chapters ?? []).map((ch: any) => ({
-                      title: ch.title,
-                      content: ch.content,
-                      quiz: ch.quiz?.title ? { title: ch.quiz.title } : undefined,
-                    })),
+  title: ch.title,
+  content: ch.content,
+  quiz: ch.quiz ? {
+    title: ch.quiz.title || `Quiz: ${ch.title}`,
+    questions: ch.quiz.questions || [],
+  } : undefined,
+})),
                   });
 
                   setMessages((prev) => [
