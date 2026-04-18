@@ -2,21 +2,14 @@ import { supabase } from "@/supabaseConfig";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
-
-// Helper to get the auth token from Supabase session
 const getToken = async (): Promise<string | null> => {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token || null;
 };
 
-// Helper for authenticated requests
-const authRequest = async (
-  method: string,
-  endpoint: string,
-  body?: any
-) => {
+const authRequest = async (method: string, endpoint: string, body?: any) => {
   const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
+  if (!token) throw new Error("Session expired. Please login again.");
 
   const response = await fetch(`${BACKEND_URL}${endpoint}`, {
     method,
@@ -28,30 +21,24 @@ const authRequest = async (
   });
 
   const data = await response.json();
-  if (!data.success) throw new Error(data.message);
+  if (!data.success) {
+    console.log("API ERROR:", data);
+    throw new Error(data.message);
+  }
   return data;
 };
 
-// ─── AI Courses ──────────────────────────────────────────────────────────────
+// ─── AI Courses ───────────────────────────────────────────────────────────────
 
-export const apiGetMyCourses = () =>
-  authRequest("GET", "/api/ai-courses");
+export const apiGetMyCourses = () => authRequest("GET", "/api/ai-courses");
 
-export const apiGetCourse = (id: string) =>
-  authRequest("GET", `/api/ai-courses/${id}`);
+export const apiGetCourse = (id: string) => authRequest("GET", `/api/ai-courses/${id}`);
 
 export const apiCreateCourse = (course: {
   title: string;
   subject: string;
   description: string;
-  chapters: {
-    title: string;
-    content: string;
-    quiz?: {
-      title: string;
-      questions: { question: string; options: string[]; answer: string }[];
-    };
-  }[];
+  chapters: { title: string; content: string; quiz?: { title: string } }[];
 }) => authRequest("POST", "/api/ai-courses", course);
 
 export const apiDeleteCourse = (id: string) =>
@@ -67,11 +54,25 @@ export const apiSubmitQuiz = (
   chapterTitle?: string,
   questions?: any[],
   userAnswers?: string[]
-) => authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, {
-  score, chapterTitle, questions, userAnswers
-});
+) =>
+  authRequest("PATCH", `/api/ai-courses/${courseId}/quizzes/${quizId}/submit`, {
+    score,
+    chapterTitle,
+    questions,
+    userAnswers,
+  });
 
-// ─── Activity ────────────────────────────────────────────────────────────────
+// ─── Entry Quiz ───────────────────────────────────────────────────────────────
+
+/** Generates the entry quiz for a course (AI picks question count). */
+export const apiGenerateEntryQuiz = (courseId: string) =>
+  authRequest("POST", `/api/ai-courses/${courseId}/entry-quiz/generate`);
+
+/** Submits entry quiz answers. Returns score, level, skipped chapters. */
+export const apiSubmitEntryQuiz = (courseId: string, userAnswers: string[]) =>
+  authRequest("POST", `/api/ai-courses/${courseId}/entry-quiz/submit`, { userAnswers });
+
+// ─── Activity ─────────────────────────────────────────────────────────────────
 
 export const apiGetActivity = (limit = 20, offset = 0) =>
   authRequest("GET", `/api/activity?limit=${limit}&offset=${offset}`);
@@ -79,52 +80,59 @@ export const apiGetActivity = (limit = 20, offset = 0) =>
 export const apiLogActivity = (type: string, description: string) =>
   authRequest("POST", "/api/activity", { type, description });
 
-export const apiClearActivity = () =>
-  authRequest("DELETE", "/api/activity");
+export const apiClearActivity = () => authRequest("DELETE", "/api/activity");
 
-// ─── User Profile & Goals ────────────────────────────────────────────────────
+// ─── User Profile & Goals ─────────────────────────────────────────────────────
 
-export const apiGetProfile = () =>
-  authRequest("GET", "/api/user/profile");
+export const apiGetProfile = () => authRequest("GET", "/api/user/profile");
 
 export const apiUpdateProfile = (updates: { full_name?: string; avatar_url?: string }) =>
   authRequest("PATCH", "/api/user/profile", updates);
 
-export const apiGetGoal = () =>
-  authRequest("GET", "/api/user/goal");
+export const apiGetGoal = () => authRequest("GET", "/api/user/goal");
 
 export const apiUpdateGoal = (goal_minutes: number) =>
   authRequest("PATCH", "/api/user/goal", { goal_minutes });
 
 export const apiAddStudyProgress = (minutes: number) =>
   authRequest("POST", "/api/user/goal/progress", { minutes });
-export const apiChatWithAI = (message: string, history: { role: string; content: string }[]) =>
-  authRequest("POST", "/api/ai/chat", { message, history });
+
+// ─── AI (general) ─────────────────────────────────────────────────────────────
+
+export const apiChatWithAI = (
+  message: string,
+  history: { role: string; content: string }[]
+) => authRequest("POST", "/api/ai/chat", { message, history });
 
 export const apiGenerateCourse = (topic: string, level = "beginner") =>
   authRequest("POST", "/api/ai/generate-course", { topic, level });
+
 export const apiGenerateQuizFromFile = (fileText: string, fileName: string) =>
   authRequest("POST", "/api/ai/quiz-from-file", { fileText, fileName });
 
-export const apiSaveDiagnosticResult = (subject: string, score: number, total: number, fileName: string) =>
-  authRequest("POST", "/api/ai/save-diagnostic", { subject, score, total, fileName });
+export const apiSaveDiagnosticResult = (
+  subject: string,
+  score: number,
+  total: number,
+  fileName: string
+) => authRequest("POST", "/api/ai/save-diagnostic", { subject, score, total, fileName });
 
-export const apiUploadFile = async (fileUri: string, fileName: string, mimeType: string) => {
+// ─── File upload ──────────────────────────────────────────────────────────────
+
+export const apiUploadFile = async (
+  fileUri: string,
+  fileName: string,
+  mimeType: string
+) => {
   const token = await getToken();
   if (!token) throw new Error("Not authenticated");
 
   const formData = new FormData();
-  formData.append("file", {
-    uri: fileUri,
-    name: fileName,
-    type: mimeType,
-  } as any);
+  formData.append("file", { uri: fileUri, name: fileName, type: mimeType } as any);
 
   const response = await fetch(`${BACKEND_URL}/api/upload`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
 
@@ -133,11 +141,38 @@ export const apiUploadFile = async (fileUri: string, fileName: string, mimeType:
   return data;
 };
 
-// ─── AI Agent Chats (Threads) ────────────────────────────────────────────────
+// ─── Voice transcription ──────────────────────────────────────────────────────
+
+export const apiTranscribeAudio = async (audioUri: string) => {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const isWav = audioUri.toLowerCase().includes(".wav");
+  const fileName = isWav ? "voice.wav" : "voice.m4a";
+  const mimeType = isWav ? "audio/wav" : "audio/m4a";
+
+  const formData = new FormData();
+  formData.append("audio", { uri: audioUri, name: fileName, type: mimeType } as any);
+
+  const response = await fetch(`${BACKEND_URL}/api/ai/transcribe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!data.success) throw new Error(data.message);
+  return data;
+};
+
+// ─── AI Agent Chats ───────────────────────────────────────────────────────────
+
 export const apiListConversations = (agentId?: string) =>
   authRequest(
     "GET",
-    agentId ? `/api/ai/conversations?agentId=${encodeURIComponent(agentId)}` : "/api/ai/conversations"
+    agentId
+      ? `/api/ai/conversations?agentId=${encodeURIComponent(agentId)}`
+      : "/api/ai/conversations"
   );
 
 export const apiCreateConversation = (agentId: string, title?: string) =>
