@@ -11,6 +11,8 @@ import {
   apiGenerateEntryQuiz, apiSubmitEntryQuiz,
 } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
+import { PomodoroFloatingPill, PomodoroHeaderButton } from "@/components/PomodoroTimer";
+import { usePomodoro } from "@/context/PomodoroContext";
 
 const PRIMARY = "#9cd21f";
 const PASSING_GRADE = 80;
@@ -177,6 +179,8 @@ export default function CourseDetail() {
   const genId = () => Math.random().toString(36).substr(2, 9);
 
   useEffect(() => { if (courseId) fetchCourse(); }, [courseId]);
+ 
+  const { settings: pomodoroSettings, start: pomodoroStart, state: pomodoroState } = usePomodoro();
 
   const fetchCourse = async () => {
     try {
@@ -570,7 +574,12 @@ export default function CourseDetail() {
                   )}
                   <TouchableOpacity
                     style={[styles.chapterCard, chapter.is_completed && styles.chapterCardDone]}
-                    onPress={() => setChapterModal(chapter)}
+                    onPress={() => {
+                      setChapterModal(chapter);
+                      if (pomodoroSettings.enabled && !pomodoroState.isRunning && pomodoroState.phase === "work") {
+                        pomodoroStart();
+                      }
+                    }}
                   >
                     <View style={[styles.stepCircle, { backgroundColor: chapter.is_completed ? PRIMARY : "#e5e7eb" }]}>
                       {loadingChapter === chapter.id
@@ -1116,6 +1125,7 @@ export default function CourseDetail() {
       </Modal>
 
       <FileQuizModal visible={quizModalVisible} onClose={() => setQuizModalVisible(false)} />
+      <PomodoroFloatingPill />
     </SafeAreaView>
   );
 }
