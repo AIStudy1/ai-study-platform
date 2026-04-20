@@ -9,7 +9,7 @@ import {
   submitQuiz,
   generateEntryQuiz,
   submitEntryQuiz,
-} from "backend/src/controllers/aiCourseController.js";
+} from "../controllers/aiCourseController.js";
 
 const router = express.Router();
 router.use(authenticateUser);
