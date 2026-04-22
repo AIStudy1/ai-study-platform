@@ -8,7 +8,7 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   apiCompleteChapter, apiSubmitQuiz, apiLogActivity, apiGetCourse,
-  apiGenerateEntryQuiz, apiSubmitEntryQuiz,
+  apiGenerateEntryQuiz, apiSubmitEntryQuiz,apiGenerateFlashcards,
 } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 import { PomodoroFloatingPill, PomodoroHeaderButton } from "@/components/PomodoroTimer";
@@ -150,6 +150,7 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [loadingChapter, setLoadingChapter] = useState<string | null>(null);
   const [quizModalVisible, setQuizModalVisible] = useState(false);
+  const [generatingFlashcards, setGeneratingFlashcards] = useState(false);
 
   // Chapter reader
   const [chapterModal, setChapterModal] = useState<Chapter | null>(null);
@@ -805,7 +806,44 @@ export default function CourseDetail() {
                       </>}
                 </TouchableOpacity>
               )}
-
+              {chapterModal.is_completed && (
+                <TouchableOpacity
+                  style={[styles.completeBtn, { backgroundColor: "#f59e0b", marginTop: 12 }]}
+                  onPress={async () => {
+                    setGeneratingFlashcards(true);
+                    try {
+                      const res = await apiGenerateFlashcards(
+                        course!.id,
+                        chapterModal.id,
+                        chapterModal.title,
+                        chapterModal.content
+                      );
+                      const count = res.data?.length ?? 0;
+                      const isExisting = res.existing;
+                      Alert.alert(
+                        isExisting ? "Flashcards already exist 🃏" : "Flashcards generated! 🃏",
+                        isExisting
+                          ? `You already have ${count} cards for this chapter. Review them from the dashboard.`
+                          : `${count} flashcards created! Review them from your dashboard.`
+                      );
+                    } catch (e: any) {
+                      Alert.alert("Error", e.message);
+                    } finally {
+                      setGeneratingFlashcards(false);
+                    }
+                  }}
+                  disabled={generatingFlashcards}
+                >
+                  {generatingFlashcards ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <>
+                      <Text style={{ fontSize: 16 }}>🃏</Text>
+                      <Text style={styles.completeBtnText}>Generate Flashcards</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
               {chapterModal.is_completed && chapterModal.has_quiz && (
                 <TouchableOpacity
                   style={[styles.completeBtn, { backgroundColor: "#8b5cf6" }]}

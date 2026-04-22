@@ -195,3 +195,63 @@ export const apiAgentChat = (
     attachmentText,
     attachmentName,
   });
+
+// ─── Streak & Leaderboard ─────────────────────────────────────────────────────
+
+export const apiGetStreak = () =>
+  authRequest("GET", "/api/streaks");
+
+export const apiRecordStudyActivity = (activityType: string, xpEarned: number) =>
+  authRequest("POST", "/api/streaks/record", { activityType, xpEarned });
+
+export const apiBuyStreakFreeze = () =>
+  authRequest("POST", "/api/streaks/freeze");
+
+export const apiGetLeaderboard = (
+  type: "global" | "friends" = "global",
+  period: "weekly" | "alltime" = "weekly"
+) => authRequest("GET", `/api/streaks/leaderboard?type=${type}&period=${period}`);
+
+// ─── Flashcards ───────────────────────────────────────────────────────────────
+
+export const apiGenerateFlashcards = (
+  courseId: string,
+  chapterId: string,
+  chapterTitle: string,
+  chapterContent: string
+) =>
+  authRequest("POST", "/api/flashcards/generate", {
+    courseId, chapterId, chapterTitle, chapterContent,
+  });
+
+export const apiGetFlashcardsDue = (courseId?: string, limit = 20) =>
+  authRequest(
+    "GET",
+    `/api/flashcards/due?limit=${limit}${courseId ? `&courseId=${courseId}` : ""}`
+  );
+
+export const apiGetFlashcardStats = () =>
+  authRequest("GET", "/api/flashcards/stats");
+
+export const apiReviewFlashcard = (id: string, rating: number) =>
+  authRequest("PATCH", `/api/flashcards/${id}/review`, { rating });
+
+export const apiCompleteReviewSession = (cardsReviewed: number, correctCount: number) =>
+  authRequest("POST", "/api/flashcards/session-complete", { cardsReviewed, correctCount });
+
+// ─── Friends ──────────────────────────────────────────────────────────────────
+
+export const apiGetFriends = () =>
+  authRequest("GET", "/api/flashcards/friends");
+
+export const apiSearchUsers = (query: string) =>
+  authRequest("POST", "/api/flashcards/friends/search", { query });
+
+export const apiAddFriend = (body: { friendId?: string; inviteCode?: string }) =>
+  authRequest("POST", "/api/flashcards/friends/add", body);
+
+export const apiRespondToFriend = (id: string, action: "accept" | "reject") =>
+  authRequest("PATCH", `/api/flashcards/friends/${id}/respond`, { action });
+
+export const apiGetInviteCode = () =>
+  authRequest("GET", "/api/flashcards/friends/invite-code");

@@ -18,7 +18,7 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
         }}
       >
-        <Tabs.Screen name="moodle-course" options={{ href: null }} />
+        {/* ── Visible tabs ──────────────────────────────────────── */}
         <Tabs.Screen
           name="dashboard"
           options={{
@@ -56,14 +56,17 @@ export default function TabLayout() {
           }}
         />
 
-        {/* Hidden from tab bar */}
-        <Tabs.Screen name="index"      options={{ href: null }} />
-        <Tabs.Screen name="login"      options={{ href: null }} />
-        <Tabs.Screen name="signup"     options={{ href: null }} />
-        <Tabs.Screen name="course"     options={{ href: null }} />
-        <Tabs.Screen name="moodle"     options={{ href: null }} />
-        <Tabs.Screen name="settings"   options={{ href: null }} />
-        <Tabs.Screen name="diagnostic" options={{ href: null }} />
+        {/* ── Hidden from tab bar ───────────────────────────────── */}
+        <Tabs.Screen name="moodle-course"      options={{ href: null }} />
+        <Tabs.Screen name="index"              options={{ href: null }} />
+        <Tabs.Screen name="login"              options={{ href: null }} />
+        <Tabs.Screen name="signup"             options={{ href: null }} />
+        <Tabs.Screen name="course"             options={{ href: null }} />
+        <Tabs.Screen name="moodle"             options={{ href: null }} />
+        <Tabs.Screen name="settings"           options={{ href: null }} />
+        <Tabs.Screen name="diagnostic"         options={{ href: null }} />
+        <Tabs.Screen name="leaderboard"        options={{ href: null }} />
+        <Tabs.Screen name="flashcard-review"   options={{ href: null }} />
       </Tabs>
     </PomodoroProvider>
   );

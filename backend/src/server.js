@@ -10,6 +10,9 @@ import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 
+import { streakRouter }    from "./routes/streakRoutes.js";
+import { flashcardRouter } from "./routes/flashcardRoutes.js";
+
 dotenv.config();
 
 const app = express();
@@ -26,6 +29,10 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/upload", uploadRoutes);
+
+
+app.use("/api/streaks",    streakRouter);
+app.use("/api/flashcards", flashcardRouter);
 
 // Root route
 app.get("/", (req, res) => {
