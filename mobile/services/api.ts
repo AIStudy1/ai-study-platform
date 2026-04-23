@@ -195,3 +195,8 @@ export const apiAgentChat = (
     attachmentText,
     attachmentName,
   });
+  // ─── Rewards ──────────────────────────────────────────────────────────────────
+
+export const apiGetBadges = () => authRequest("GET", "/api/rewards/badges");
+
+export const apiGetLeaderboard = () => authRequest("GET", "/api/rewards/leaderboard");
