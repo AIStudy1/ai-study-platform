@@ -9,16 +9,15 @@ import aiRoutes from "./routes/aiRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import rewardRoutes from "./routes/rewardRoutes.js";
 
 dotenv.config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai-courses", aiCourseRoutes);
@@ -26,13 +25,12 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/rewards", rewardRoutes);
 
-// Root route
 app.get("/", (req, res) => {
   res.send("LearnFlow API Running ✅");
 });
 
-// Test DB route
 app.get("/test-db", async (req, res) => {
   const { data, error } = await supabase
     .from('users')

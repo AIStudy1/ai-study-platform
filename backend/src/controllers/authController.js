@@ -1,8 +1,8 @@
 import supabase from "../config/supabaseClient.js";
+import { updateLoginStreak, checkAndAwardBadges } from "./rewardController.js";
 
 /**
  * Register user via Supabase Auth
- * This creates the auth user and stores role metadata.
  */
 export const register = async (req, res) => {
   const { email, password, full_name, role } = req.body;
@@ -40,10 +40,8 @@ export const register = async (req, res) => {
   }
 };
 
-
 /**
  * Login via Supabase Auth
- * Supabase returns access_token + session
  */
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -60,11 +58,17 @@ export const login = async (req, res) => {
         message: error.message,
       });
     }
+
     const { data: profile } = await supabase
       .from("users")
       .select("role, full_name")
       .eq("id", data.user.id)
       .single();
+
+    // ── Streak + badges au login ──────────────────────────────────────
+    const newStreak = await updateLoginStreak(data.user.id);
+    const newBadges = await checkAndAwardBadges(data.user.id);
+    // ─────────────────────────────────────────────────────────────────
 
     return res.status(200).json({
       success: true,
@@ -72,9 +76,11 @@ export const login = async (req, res) => {
       session: data.session,
       user: {
         ...data.user,
-        role: profile?.role || "student",         
+        role: profile?.role || "student",
         full_name: profile?.full_name || data.user.user_metadata?.full_name || "",
       },
+      streak: newStreak || null,
+      newBadges: newBadges || [],
     });
 
   } catch (error) {
@@ -84,6 +90,7 @@ export const login = async (req, res) => {
     });
   }
 };
+
 export const resetPassword = async (req, res) => {
   const { email } = req.body;
   const { error } = await supabase.auth.resetPasswordForEmail(email);
