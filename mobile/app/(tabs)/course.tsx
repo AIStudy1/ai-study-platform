@@ -163,6 +163,7 @@ export default function CourseDetail() {
   const [entryQuizSubmitting, setEntryQuizSubmitting] = useState(false);
   const [entryQuizResult, setEntryQuizResult] = useState<EntryQuizResult | null>(null);
   const [entryOptionState, setEntryOptionState] = useState<"idle"|"correct"|"wrong">("idle");
+  const [lastEntryAnswer, setLastEntryAnswer] = useState<string | null>(null); // ← FIX 1
 
   // ── Chapter quiz state ─────────────────────────────────────────────────────
   const [activeQuiz, setActiveQuiz] = useState<{ chapter: Chapter; quiz: Quiz; allQuestions: Question[] } | null>(null);
@@ -237,7 +238,6 @@ export default function CourseDetail() {
 
   const handleStartEntryQuiz = async () => {
     if (!course) return;
-    // If already generated, use cached version; otherwise generate
     if (course.entry_quiz) {
       setEntryQuizData(course.entry_quiz);
       setEntryQuizIndex(0);
@@ -271,18 +271,20 @@ export default function CourseDetail() {
     const isCorrect = option === currentQ.answer;
 
     setEntryOptionState(isCorrect ? "correct" : "wrong");
+    setLastEntryAnswer(option); // ← FIX 2a
 
     setTimeout(() => {
       const newAnswers = [...entryQuizAnswers, option];
       setEntryQuizAnswers(newAnswers);
       setEntryOptionState("idle");
+      setLastEntryAnswer(null); // ← FIX 2b
 
       if (entryQuizIndex < questions.length - 1) {
         setEntryQuizIndex((i) => i + 1);
       } else {
         finishEntryQuiz(newAnswers);
       }
-    }, 700); // show feedback for 700ms then advance
+    }, 700);
   };
 
   const finishEntryQuiz = async (answers: string[]) => {
@@ -291,7 +293,6 @@ export default function CourseDetail() {
     try {
       const res = await apiSubmitEntryQuiz(course.id, answers);
       setEntryQuizResult(res.data);
-      // Refresh course to get updated chapter difficulties + completed_chapters
       await fetchCourse();
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -306,6 +307,7 @@ export default function CourseDetail() {
     setEntryQuizResult(null);
     setEntryQuizIndex(0);
     setEntryQuizAnswers([]);
+    setLastEntryAnswer(null); // ← FIX 3
   };
 
   // ── Chapter quiz ───────────────────────────────────────────────────────────
@@ -316,6 +318,23 @@ export default function CourseDetail() {
       return;
     }
     if (!chapter.quiz) return;
+
+    // ← FIX 5 : bloquer si le quiz du chapitre précédent n'est pas passé
+    if (course) {
+      const sorted = [...course.chapters].sort((a, b) => a.order_index - b.order_index);
+      const idx = sorted.findIndex((c) => c.id === chapter.id);
+      if (idx > 0) {
+        const prev = sorted[idx - 1];
+        if (prev.has_quiz && prev.quiz && !prev.quiz.passed) {
+          Alert.alert(
+            "Previous quiz required 🔒",
+            `You need to pass the quiz for "${prev.title}" first (${prev.quiz.score !== null ? `your score: ${prev.quiz.score}%` : "not attempted yet"}).`
+          );
+          return;
+        }
+      }
+    }
+
     const base = chapter.quiz.questions || [];
     const bonus = chapter.quiz.bonus_questions || [];
     const allQuestions = [...base, ...bonus];
@@ -334,7 +353,6 @@ export default function CourseDetail() {
     const currentQ = activeQuiz.allQuestions[quizIndex];
     const isCorrect = option === currentQ.answer;
 
-    // Show feedback
     setOptionStates((prev) => ({
       ...prev,
       [quizIndex]: isCorrect ? "correct" : "wrong",
@@ -410,7 +428,6 @@ export default function CourseDetail() {
     }
   };
 
-  // ── Derived stats ──────────────────────────────────────────────────────────
   if (loading) return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
       <View style={styles.centered}>
@@ -433,10 +450,8 @@ export default function CourseDetail() {
   const entryQuizTaken = course.entry_quiz_passed !== null;
   const diffMeta = DIFFICULTY_META[course.course_level as Difficulty] || DIFFICULTY_META.beginner;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color="#333" />
@@ -448,7 +463,6 @@ export default function CourseDetail() {
       </View>
 
       <ScrollView style={styles.container}>
-        {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconBox}>
             <Ionicons name={course.type === "ai" ? "sparkles" : "school"} size={36} color="white" />
@@ -473,7 +487,6 @@ export default function CourseDetail() {
           <XPBar xp={course.course_xp || 0} level={Math.floor((course.course_xp || 0) / 1000) + 1} />
         </View>
 
-        {/* Entry Quiz Banner */}
         {!entryQuizTaken ? (
           <TouchableOpacity
             style={styles.entryQuizBanner}
@@ -514,7 +527,6 @@ export default function CourseDetail() {
           </View>
         )}
 
-        {/* Progress card */}
         <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
             <Text style={styles.progressTitle}>Overall Progress</Text>
@@ -535,7 +547,6 @@ export default function CourseDetail() {
           </View>
         </View>
 
-        {/* Upload banner */}
         <TouchableOpacity style={styles.uploadBanner} onPress={() => setQuizModalVisible(true)}>
           <View style={styles.uploadBannerLeft}>
             <Ionicons name="document-text-outline" size={24} color={PRIMARY} />
@@ -547,7 +558,6 @@ export default function CourseDetail() {
           <Ionicons name="arrow-forward" size={18} color={PRIMARY} />
         </TouchableOpacity>
 
-        {/* Tabs */}
         <View style={styles.tabs}>
           {(["chapters", "quizzes", "progress"] as TabType[]).map((tab) => (
             <TouchableOpacity
@@ -562,7 +572,6 @@ export default function CourseDetail() {
           ))}
         </View>
 
-        {/* ── Chapters tab ─────────────────────────────────────────────── */}
         {activeTab === "chapters" && (
           <View style={styles.section}>
             {course.chapters.map((chapter, index) => {
@@ -627,7 +636,6 @@ export default function CourseDetail() {
           </View>
         )}
 
-        {/* ── Quizzes tab ───────────────────────────────────────────────── */}
         {activeTab === "quizzes" && (
           <View style={styles.section}>
             <View style={styles.passingGradeBanner}>
@@ -688,7 +696,6 @@ export default function CourseDetail() {
           </View>
         )}
 
-        {/* ── Progress tab ──────────────────────────────────────────────── */}
         {activeTab === "progress" && (
           <View style={styles.section}>
             <View style={styles.summaryRow}>
@@ -706,7 +713,6 @@ export default function CourseDetail() {
               </View>
             </View>
 
-            {/* Entry quiz result card */}
             {entryQuizTaken && (
               <View style={[styles.entryResultCard, { borderColor: course.entry_quiz_passed ? PRIMARY : "#f97316" }]}>
                 <Ionicons
@@ -774,7 +780,6 @@ export default function CourseDetail() {
               <View style={{ width: 36 }} />
             </View>
             <ScrollView contentContainerStyle={styles.chapterContent}>
-              {/* Difficulty badge */}
               {(() => {
                 const dm = DIFFICULTY_META[chapterModal.difficulty] || DIFFICULTY_META.beginner;
                 return (
@@ -835,7 +840,6 @@ export default function CourseDetail() {
       {/* ══ Entry Quiz Modal ════════════════════════════════════════════════ */}
       <Modal visible={entryQuizVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-          {/* Result screen */}
           {entryQuizResult ? (
             <>
               <View style={styles.modalHeader}>
@@ -881,7 +885,6 @@ export default function CourseDetail() {
                   </View>
                 )}
 
-                {/* Per-question feedback */}
                 <Text style={[styles.reportSectionTitle, { marginBottom: 10 }]}>📋 Question Review</Text>
                 {entryQuizResult.feedback.map((f, i) => (
                   <View key={i} style={[styles.feedbackCard, {
@@ -909,7 +912,6 @@ export default function CourseDetail() {
               </ScrollView>
             </>
           ) : entryQuizData ? (
-            /* Quiz questions */
             <>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={closeEntryQuiz} style={styles.backButton}>
@@ -951,20 +953,21 @@ export default function CourseDetail() {
                   <View style={styles.options}>
                     {entryQuizData.questions?.[entryQuizIndex]?.options?.map((opt: string, i: number) => {
                       const correct = entryQuizData.questions[entryQuizIndex].answer;
-                      let state: "idle" | "correct" | "wrong" = "idle";
-                      if (entryOptionState !== "idle") {
-                        if (opt === correct) state = "correct";
-                        else if (entryQuizAnswers.length === entryQuizIndex) state = "idle"; // not yet answered
-                      }
                       return (
                         <OptionButton
                           key={i}
                           option={opt}
                           index={i}
                           onPress={() => handleEntryAnswer(opt)}
-                          state={entryOptionState !== "idle" && opt === correct ? "correct"
-                            : entryOptionState !== "idle" && entryOptionState === "wrong" && i === entryQuizData.questions[entryQuizIndex].options.indexOf(entryQuizAnswers[entryQuizAnswers.length] ?? "@@") ? "wrong"
-                            : "idle"}
+                          state={
+                            entryOptionState === "idle"
+                              ? "idle"
+                              : opt === correct
+                              ? "correct"
+                              : opt === lastEntryAnswer
+                              ? "wrong"
+                              : "idle"
+                          }
                         />
                       );
                     })}
@@ -1139,7 +1142,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
   quizFromFileBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center" },
   container: { flex: 1 },
-  // Hero
   hero: { backgroundColor: "white", padding: 24, alignItems: "center", marginBottom: 8 },
   heroIconBox: { width: 80, height: 80, borderRadius: 20, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center", marginBottom: 12 },
   typeBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
@@ -1147,17 +1149,14 @@ const styles = StyleSheet.create({
   courseTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4, marginTop: 4 },
   courseSubject: { fontSize: 14, color: "#999", marginBottom: 12 },
   courseDescription: { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 22 },
-  // Entry quiz banner
   entryQuizBanner: { backgroundColor: "#8b5cf6", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: "transparent" },
   entryQuizBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   entryQuizIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   entryQuizTitle: { fontSize: 15, fontWeight: "bold", color: "white" },
   entryQuizSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
-  // Entry quiz result card
   entryResultCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderRadius: 14, padding: 14, marginBottom: 16, elevation: 1, borderWidth: 1.5 },
   entryResultTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
   entryResultSub: { fontSize: 12, color: "#666", marginTop: 2 },
-  // Progress card
   progressCard: { backgroundColor: "white", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, elevation: 1 },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   progressTitle: { fontWeight: "bold", color: "#333" },
@@ -1167,19 +1166,16 @@ const styles = StyleSheet.create({
   progressStats: { flexDirection: "row", justifyContent: "space-around" },
   progressStat: { flexDirection: "row", alignItems: "center", gap: 6 },
   progressStatText: { fontSize: 13, color: "#666" },
-  // Upload banner
   uploadBanner: { backgroundColor: PRIMARY + "15", marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: PRIMARY + "30" },
   uploadBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   uploadBannerTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
   uploadBannerSubtitle: { fontSize: 12, color: "#666", marginTop: 2 },
-  // Tabs
   tabs: { flexDirection: "row", marginHorizontal: 16, backgroundColor: "white", borderRadius: 12, padding: 4, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
   tabActive: { backgroundColor: PRIMARY },
   tabText: { fontWeight: "600", color: "#999", fontSize: 14 },
   tabTextActive: { color: "white" },
   section: { paddingHorizontal: 16, paddingBottom: 40 },
-  // Chapters
   connector: { width: 2, height: 12, marginLeft: 29, marginVertical: -2, zIndex: 0 },
   chapterCard: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 8, elevation: 1, zIndex: 1 },
   chapterCardDone: { borderLeftWidth: 3, borderLeftColor: PRIMARY },
@@ -1199,7 +1195,6 @@ const styles = StyleSheet.create({
   doneBadgeText: { fontSize: 11, color: PRIMARY, fontWeight: "bold" },
   passingGradeBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff7ed", borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: "#fed7aa" },
   passingGradeText: { fontSize: 13, color: "#f97316", fontWeight: "600" },
-  // Quizzes
   quizCard: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 10, elevation: 1 },
   quizIconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 12 },
   quizInfo: { flex: 1 },
@@ -1209,7 +1204,6 @@ const styles = StyleSheet.create({
   quizRight: { alignItems: "flex-end" },
   bonusBadge: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 3 },
   bonusBadgeText: { fontSize: 10, color: "#8b5cf6", fontWeight: "600" },
-  // Progress tab
   summaryRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
   summaryCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: "center" },
   summaryNumber: { fontSize: 22, fontWeight: "bold", marginBottom: 4 },
@@ -1222,7 +1216,6 @@ const styles = StyleSheet.create({
   breakdownRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   quizResultBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   quizResultText: { fontSize: 11, fontWeight: "bold" },
-  // Modals
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
   modalHeaderTitle: { fontSize: 16, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
   chapterContent: { padding: 20, paddingBottom: 40 },
@@ -1234,7 +1227,6 @@ const styles = StyleSheet.create({
   completeBtnText: { color: "white", fontWeight: "bold", fontSize: 16 },
   completedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: PRIMARY + "15", borderRadius: 12, padding: 12, marginTop: 16 },
   completedBannerText: { color: PRIMARY, fontWeight: "600", fontSize: 14 },
-  // Quiz UI
   progressBg: { height: 6, backgroundColor: "#e5e7eb" },
   progressFill: { height: 6, backgroundColor: PRIMARY },
   quizMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
@@ -1248,7 +1240,6 @@ const styles = StyleSheet.create({
   optionLetter: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   optionLetterText: { fontSize: 13, fontWeight: "bold", color: "#555" },
   optionText: { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
-  // Report
   reportScoreCard: { backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center", marginBottom: 20, elevation: 2, borderWidth: 2 },
   reportScore: { fontSize: 48, fontWeight: "bold", marginTop: 8 },
   reportStatus: { fontSize: 16, fontWeight: "600", color: "#666", marginTop: 4 },
@@ -1257,7 +1248,6 @@ const styles = StyleSheet.create({
   reportSectionTitle: { fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 10 },
   reportItem: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
   reportItemText: { fontSize: 14, color: "#444", flex: 1, lineHeight: 20 },
-  // Feedback cards (entry quiz review)
   feedbackCard: { backgroundColor: "white", borderRadius: 10, padding: 12, marginBottom: 8, borderLeftWidth: 3, elevation: 1 },
   feedbackHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   feedbackQ: { fontSize: 13, color: "#333", flex: 1, lineHeight: 18 },
