@@ -10,6 +10,7 @@ import activityRoutes from "./routes/activityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
+import plannerRoutes from "./routes/plannerRoutes.js";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/rewards", rewardRoutes);
+app.use("/api/planner", plannerRoutes);
 
 app.get("/", (req, res) => {
   res.send("LearnFlow API Running ✅");
