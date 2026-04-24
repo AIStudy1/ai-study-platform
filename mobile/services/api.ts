@@ -200,3 +200,24 @@ export const apiAgentChat = (
 export const apiGetBadges = () => authRequest("GET", "/api/rewards/badges");
 
 export const apiGetLeaderboard = () => authRequest("GET", "/api/rewards/leaderboard");
+// ─── Planner ──────────────────────────────────────────────────────────────────
+
+export const apiGetTasks = (filter?: "today" | "all" | "done") =>
+  authRequest("GET", `/api/planner/tasks${filter ? `?filter=${filter}` : ""}`);
+
+export const apiCreateTask = (task: {
+  title: string;
+  due_date?: string;
+  type?: string;
+  linked_course_id?: string;
+  notes?: string;
+}) => authRequest("POST", "/api/planner/tasks", task);
+
+export const apiCompleteTask = (id: string) =>
+  authRequest("PATCH", `/api/planner/tasks/${id}/done`, {});
+
+export const apiDeleteTask = (id: string) =>
+  authRequest("DELETE", `/api/planner/tasks/${id}`);
+
+export const apiGenerateTasksWithAI = (goal: string, days?: number) =>
+  authRequest("POST", "/api/planner/ai-generate", { goal, days });
