@@ -9,6 +9,7 @@ const getToken = async (): Promise<string | null> => {
 
 const authRequest = async (method: string, endpoint: string, body?: any) => {
   const token = await getToken();
+  console.log("REQUEST:", method, `${BACKEND_URL}${endpoint}`);
   if (!token) throw new Error("Session expired. Please login again.");
 
   const response = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -20,7 +21,11 @@ const authRequest = async (method: string, endpoint: string, body?: any) => {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await response.json();
+  console.log("RESPONSE STATUS:", response.status, endpoint);
+  const text = await response.text();
+  console.log("RESPONSE BODY:", text.substring(0, 200));
+  const data = JSON.parse(text);
+
   if (!data.success) {
     console.log("API ERROR:", data);
     throw new Error(data.message);
@@ -221,3 +226,13 @@ export const apiDeleteTask = (id: string) =>
 
 export const apiGenerateTasksWithAI = (goal: string, days?: number) =>
   authRequest("POST", "/api/planner/ai-generate", { goal, days });
+
+export const apiGeneratePreCourseQuiz = (topic: string) =>
+  authRequest("POST", "/api/ai/pre-course-quiz/generate", { topic });
+
+export const apiSubmitPreCourseQuiz = (
+  topic: string,
+  questions: any[],
+  userAnswers: string[]
+) =>
+  authRequest("POST", "/api/ai/pre-course-quiz/submit", { topic, questions, userAnswers });

@@ -17,7 +17,13 @@ async function chat(messages) {
 function parseJSON(raw) {
   const clean = String(raw).replace(/```json|```/g, "").trim();
   const match = clean.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-  return JSON.parse(match ? match[0] : clean);
+  const jsonStr = match ? match[0] : clean;
+  // Sanitize only actual unescaped control chars inside string values
+  const sanitized = jsonStr.replace(
+    /"((?:[^"\\]|\\.)*)"/g,
+    (_, inner) => `"${inner.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t")}"`
+  );
+  return JSON.parse(sanitized);
 }
 
 function fallbackTitleFromMessage(text) {

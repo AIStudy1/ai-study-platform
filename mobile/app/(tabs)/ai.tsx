@@ -21,11 +21,12 @@ import {
   apiCreateConversation,
   apiGetConversationMessages,
   apiListConversations,
+  apiGeneratePreCourseQuiz,
+  apiSubmitPreCourseQuiz,
 } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
 
 const PRIMARY = "#9cd21f";
-const PASSING_GRADE = 80;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,12 +44,7 @@ interface PreCourseQuiz {
   questions: PreCourseQuestion[];
 }
 
-type PreCourseStep =
-  | "idle"           // not started
-  | "generating"     // fetching quiz from backend
-  | "quiz"           // student answering questions
-  | "submitting"     // evaluating + generating + saving course
-  | "result";        // showing result, ready to navigate
+type PreCourseStep = "idle" | "generating" | "quiz" | "submitting" | "result";
 
 interface PreCourseResult {
   courseId: string;
@@ -61,80 +57,22 @@ interface PreCourseResult {
 // ─── Agents ───────────────────────────────────────────────────────────────────
 
 const AGENTS = [
-  {
-    id: "tutor",
-    name: "Tutor",
-    emoji: "🎓",
-    tagline: "Explains anything",
-    description: "Ask me any academic question and I'll break it down clearly.",
-    color: "#9cd21f",
-    bg: "#f0f9e8",
-  },
-  {
-    id: "course_builder",
-    name: "Course Builder",
-    emoji: "📚",
-    tagline: "Build a full course",
-    description: "Tell me a topic and I'll generate a complete course with chapters and quizzes.",
-    color: "#3b82f6",
-    bg: "#eff6ff",
-  },
-  {
-    id: "goals",
-    name: "Goals Coach",
-    emoji: "🎯",
-    tagline: "Reach your dreams",
-    description: "Share your dream goal and I'll build a step-by-step roadmap to get there.",
-    color: "#8b5cf6",
-    bg: "#f5f3ff",
-  },
-  {
-    id: "career",
-    name: "Career Advisor",
-    emoji: "💼",
-    tagline: "Land your dream job",
-    description: "CV writing, interview prep, internship hunting — I've got you covered.",
-    color: "#f97316",
-    bg: "#fff7ed",
-  },
-  {
-    id: "wellness",
-    name: "Wellness Coach",
-    emoji: "🧘",
-    tagline: "Mind & balance",
-    description: "Feeling stressed or burned out? Let's talk and get you back on track.",
-    color: "#22c55e",
-    bg: "#f0fdf4",
-  },
-  {
-    id: "budget",
-    name: "Budget Advisor",
-    emoji: "💰",
-    tagline: "Smart with money",
-    description: "Student budget planning, saving tips and managing your finances.",
-    color: "#eab308",
-    bg: "#fefce8",
-  },
+  { id: "tutor",         name: "Tutor",          emoji: "🎓", tagline: "Explains anything",   description: "Ask me any academic question and I'll break it down clearly.",                                           color: "#9cd21f", bg: "#f0f9e8" },
+  { id: "course_builder",name: "Course Builder",  emoji: "📚", tagline: "Build a full course", description: "Tell me a topic and I'll generate a complete course with chapters and quizzes.",                        color: "#3b82f6", bg: "#eff6ff" },
+  { id: "goals",         name: "Goals Coach",     emoji: "🎯", tagline: "Reach your dreams",   description: "Share your dream goal and I'll build a step-by-step roadmap to get there.",                            color: "#8b5cf6", bg: "#f5f3ff" },
+  { id: "career",        name: "Career Advisor",  emoji: "💼", tagline: "Land your dream job", description: "CV writing, interview prep, internship hunting — I've got you covered.",                               color: "#f97316", bg: "#fff7ed" },
+  { id: "wellness",      name: "Wellness Coach",  emoji: "🧘", tagline: "Mind & balance",      description: "Feeling stressed or burned out? Let's talk and get you back on track.",                                color: "#22c55e", bg: "#f0fdf4" },
+  { id: "budget",        name: "Budget Advisor",  emoji: "💰", tagline: "Smart with money",    description: "Student budget planning, saving tips and managing your finances.",                                      color: "#eab308", bg: "#fefce8" },
 ];
 
-// ─── Welcome messages ─────────────────────────────────────────────────────────
-
 const WELCOME: Record<string, string> = {
-  tutor:
-    "Hey! I'm your personal tutor 🎓\n\nAsk me anything — concepts, formulas, definitions, homework help. I'll explain it clearly.\n\nWhat are you studying today?",
-  course_builder:
-    "Hi! I'm your Course Builder 📚\n\nTell me any topic and I'll generate a complete course tailored to your level.\n\nTry: 'I want to learn Machine Learning'",
-  goals:
-    "Hey there! I'm your Goals Coach 🎯\n\nShare your big dream — whether it's a career, a skill, or a life goal — and I'll break it down into a clear roadmap.\n\nWhat's your dream?",
-  career:
-    "Hello! I'm your Career Advisor 💼\n\nI can help you with CV writing, interview prep, internship hunting, and career planning.\n\nWhat's your field of study and what career are you aiming for?",
-  wellness:
-    "Hi, I'm your Wellness Coach 🧘\n\nThis is a safe space. How are you feeling today? Are you stressed, overwhelmed, or just need someone to talk to?\n\nI'm here to listen and help.",
-  budget:
-    "Hey! I'm your Budget Advisor 💰\n\nI'll help you manage your student finances — budgeting, saving, tracking expenses and making the most of your money.\n\nTell me about your current financial situation and I'll help you plan.",
+  tutor:          "Hey! I'm your personal tutor 🎓\n\nAsk me anything — concepts, formulas, definitions, homework help. I'll explain it clearly.\n\nWhat are you studying today?",
+  course_builder: "Hi! I'm your Course Builder 📚\n\nTell me any topic and I'll generate a complete course tailored to your level.\n\nTry: 'I want to learn Machine Learning'",
+  goals:          "Hey there! I'm your Goals Coach 🎯\n\nShare your big dream — whether it's a career, a skill, or a life goal — and I'll break it down into a clear roadmap.\n\nWhat's your dream?",
+  career:         "Hello! I'm your Career Advisor 💼\n\nI can help you with CV writing, interview prep, internship hunting, and career planning.\n\nWhat's your field of study and what career are you aiming for?",
+  wellness:       "Hi, I'm your Wellness Coach 🧘\n\nThis is a safe space. How are you feeling today? Are you stressed, overwhelmed, or just need someone to talk to?\n\nI'm here to listen and help.",
+  budget:         "Hey! I'm your Budget Advisor 💰\n\nI'll help you manage your student finances — budgeting, saving, tracking expenses and making the most of your money.\n\nTell me about your current financial situation and I'll help you plan.",
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 interface Message {
   id: string;
@@ -145,11 +83,7 @@ interface Message {
 }
 
 type Conversation = {
-  id: string;
-  agent_id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
+  id: string; agent_id: string; title: string; created_at: string; updated_at: string;
 };
 
 function looksLikeCourseIntent(text: string) {
@@ -162,11 +96,7 @@ function looksLikeCourseIntent(text: string) {
   );
 }
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: "#22c55e",
-  medium: "#f97316",
-  hard: "#ef4444",
-};
+const DIFFICULTY_COLOR: Record<string, string> = { easy: "#22c55e", medium: "#f97316", hard: "#ef4444" };
 
 const LEVEL_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   beginner:     { label: "Beginner",     color: "#22c55e", bg: "#f0fdf4", icon: "🟢" },
@@ -174,17 +104,12 @@ const LEVEL_META: Record<string, { label: string; color: string; bg: string; ico
   advanced:     { label: "Advanced",     color: "#ef4444", bg: "#fef2f2", icon: "🔴" },
 };
 
-// ─── Animated option button (reused from course.tsx pattern) ──────────────────
+// ─── Option Button ────────────────────────────────────────────────────────────
 
-function OptionButton({
-  option, index, onPress, state,
-}: {
-  option: string; index: number;
-  onPress: () => void;
-  state: "idle" | "correct" | "wrong";
+function OptionButton({ option, index, onPress, state }: {
+  option: string; index: number; onPress: () => void; state: "idle" | "correct" | "wrong";
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-
+  const scale     = useRef(new Animated.Value(1)).current;
   const bgColor    = state === "correct" ? "#22c55e" : state === "wrong" ? "#ef4444" : "white";
   const borderColor = state === "correct" ? "#22c55e" : state === "wrong" ? "#ef4444" : "#e5e7eb";
 
@@ -200,13 +125,9 @@ function OptionButton({
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
         style={[pcStyles.optionBtn, { backgroundColor: bgColor, borderColor }]}
-        onPress={handlePress}
-        disabled={state !== "idle"}
-        activeOpacity={0.8}
+        onPress={handlePress} disabled={state !== "idle"} activeOpacity={0.8}
       >
-        <View style={[pcStyles.optionLetter, {
-          backgroundColor: state !== "idle" ? "rgba(255,255,255,0.25)" : "#f3f4f6",
-        }]}>
+        <View style={[pcStyles.optionLetter, { backgroundColor: state !== "idle" ? "rgba(255,255,255,0.25)" : "#f3f4f6" }]}>
           <Text style={[pcStyles.optionLetterText, state !== "idle" && { color: "white" }]}>
             {["A", "B", "C", "D"][index]}
           </Text>
@@ -219,14 +140,10 @@ function OptionButton({
   );
 }
 
-// ─── Course suggestion inline card ───────────────────────────────────────────
+// ─── Course Suggestion Card ───────────────────────────────────────────────────
 
-function CourseSuggestionCard({
-  topic, onStart, loading,
-}: {
-  topic: string;
-  onStart: () => void;
-  loading: boolean;
+function CourseSuggestionCard({ topic, onStart, loading }: {
+  topic: string; onStart: () => void; loading: boolean;
 }) {
   return (
     <View style={pcStyles.suggestionCard}>
@@ -239,26 +156,22 @@ function CourseSuggestionCard({
         Take a quick level quiz first — the course will be tailored exactly to where you are.
       </Text>
       <TouchableOpacity
-        style={pcStyles.suggestionBtn}
-        onPress={onStart}
-        disabled={loading}
+        style={[pcStyles.suggestionBtn, loading && { opacity: 0.7 }]}
+        onPress={onStart} disabled={loading}
       >
         {loading
           ? <ActivityIndicator color="white" size="small" />
-          : <>
-              <Ionicons name="flask-outline" size={16} color="white" />
-              <Text style={pcStyles.suggestionBtnText}>Start Learning Journey</Text>
-            </>}
+          : <><Ionicons name="flask-outline" size={16} color="white" /><Text style={pcStyles.suggestionBtnText}>Start Learning Journey</Text></>}
       </TouchableOpacity>
     </View>
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function AIScreen() {
-  const insets  = useSafeAreaInsets();
-  const router  = useRouter();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [selectedAgent, setSelectedAgent] = useState<typeof AGENTS[0] | null>(null);
   const [messages,      setMessages]      = useState<Message[]>([]);
@@ -271,7 +184,6 @@ export default function AIScreen() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages,      setLoadingMessages]      = useState(false);
 
-  // ── Pre-course quiz state ──────────────────────────────────────────────────
   const [pcVisible,     setPcVisible]     = useState(false);
   const [pcTopic,       setPcTopic]       = useState("");
   const [pcStep,        setPcStep]        = useState<PreCourseStep>("idle");
@@ -289,9 +201,10 @@ export default function AIScreen() {
     return WELCOME[selectedAgent.id] ?? "Hi!";
   }, [selectedAgent]);
 
-  // ── Agent open/close ───────────────────────────────────────────────────────
+  // KEY FIX: hide agent modal while quiz modal is open — iOS can't show two modals at once
+  const agentModalVisible = !!selectedAgent && !pcVisible;
 
-  const openAgent = async (agent: typeof AGENTS[0]) => {
+  const openAgent = (agent: typeof AGENTS[0]) => {
     setSelectedAgent(agent);
     setConversationId(null);
     setMessages([{ id: "1", role: "assistant", content: WELCOME[agent.id] }]);
@@ -307,8 +220,6 @@ export default function AIScreen() {
     setHistoryVisible(false);
     setConversations([]);
   };
-
-  // ── Conversations ──────────────────────────────────────────────────────────
 
   const refreshConversations = async (agentId: string) => {
     setLoadingConversations(true);
@@ -346,11 +257,7 @@ export default function AIScreen() {
     try {
       setConversationId(conv.id);
       const res    = await apiGetConversationMessages(conv.id);
-      const loaded = (res.data as any[]).map((m) => ({
-        id:      m.id,
-        role:    m.role,
-        content: m.content,
-      })) as Message[];
+      const loaded = (res.data as any[]).map((m) => ({ id: m.id, role: m.role, content: m.content })) as Message[];
       setMessages(loaded.length > 0 ? loaded : [{ id: "1", role: "assistant", content: agentWelcome }]);
       setHistoryVisible(false);
     } finally {
@@ -358,28 +265,21 @@ export default function AIScreen() {
     }
   };
 
-  // ── Send message ───────────────────────────────────────────────────────────
-
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || !selectedAgent) return;
 
-    // Auto-create conversation if needed
     let activeConvId = conversationId;
     if (!activeConvId) {
       try {
         const created = await apiCreateConversation(selectedAgent.id);
         activeConvId  = (created.data as Conversation).id;
         setConversationId(activeConvId);
-      } catch (e: any) {
-        Alert.alert("Error", e.message);
-        return;
-      }
+      } catch (e: any) { Alert.alert("Error", e.message); return; }
     }
 
     const userMsg: Message    = { id: genId(), role: "user",      content: text };
     const loadingMsg: Message = { id: genId(), role: "assistant", content: "", isLoading: true };
-
     setMessages((prev) => [...prev, userMsg, loadingMsg]);
     setInput("");
     setSending(true);
@@ -388,58 +288,32 @@ export default function AIScreen() {
       const res        = await apiAgentChat(selectedAgent.id, text, activeConvId!);
       const reply      = res.data.reply as string;
       const suggestion = (res.data as any)?.courseSuggestion;
+      const fallback   = !suggestion?.shouldSuggest && looksLikeCourseIntent(text)
+        ? { shouldSuggest: true, topic: text, level: "beginner" } : null;
+      const final      = suggestion?.shouldSuggest && suggestion?.topic ? suggestion : fallback;
 
-      // Fallback: if backend didn't flag it but message looks like course intent
-      const fallbackSuggestion =
-        !suggestion?.shouldSuggest && looksLikeCourseIntent(text)
-          ? { shouldSuggest: true, topic: text, level: "beginner" }
-          : null;
-
-      const finalSuggestion =
-        suggestion?.shouldSuggest && suggestion?.topic ? suggestion : fallbackSuggestion;
-
-      // Replace loading bubble, and optionally attach courseSuggestion to it
       setMessages((prev) =>
-        prev.map((m) =>
-          m.isLoading
-            ? {
-                ...m,
-                content: reply,
-                isLoading: false,
-                courseSuggestion: finalSuggestion?.shouldSuggest
-                  ? { topic: finalSuggestion.topic, level: finalSuggestion.level }
-                  : undefined,
-              }
-            : m
-        )
+        prev.map((m) => m.isLoading ? {
+          ...m, content: reply, isLoading: false,
+          courseSuggestion: final?.shouldSuggest ? { topic: final.topic, level: final.level } : undefined,
+        } : m)
       );
 
-      // Refresh title
       const newTitle = (res.data as any)?.conversationTitle;
-      if (newTitle) {
-        setConversations((prev) =>
-          prev.map((c) => (c.id === activeConvId ? { ...c, title: newTitle } : c))
-        );
-      }
+      if (newTitle) setConversations((prev) => prev.map((c) => c.id === activeConvId ? { ...c, title: newTitle } : c));
       await refreshConversations(selectedAgent.id);
     } catch (e: any) {
-      const errorMessage = e?.message || "Something went wrong. Please try again.";
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.isLoading ? { ...m, content: `Sorry: ${errorMessage}`, isLoading: false } : m
-        )
-      );
+      setMessages((prev) => prev.map((m) => m.isLoading ? { ...m, content: `Sorry: ${e?.message || "Something went wrong."}`, isLoading: false } : m));
     } finally {
       setSending(false);
     }
   };
 
-  // ── Pre-course quiz: start ─────────────────────────────────────────────────
+  // ── Pre-course quiz ────────────────────────────────────────────────────────
 
   const startPreCourseQuiz = async (topic: string) => {
     setPcTopic(topic);
     setPcStep("generating");
-    setPcVisible(true);
     setPcQuiz(null);
     setPcIndex(0);
     setPcAnswers([]);
@@ -448,38 +322,24 @@ export default function AIScreen() {
     setPcResult(null);
 
     try {
-      const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
-      const { supabase } = await import("@/supabaseConfig");
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const res = await fetch(`${BACKEND_URL}/api/ai/pre-course-quiz/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ topic }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.message);
-
-      setPcQuiz(json.data);
+      const res = await apiGeneratePreCourseQuiz(topic);
+      if (!res.data || !res.data.questions || res.data.questions.length === 0) {
+        throw new Error("Quiz data is empty");
+      }
+      setPcQuiz(res.data);
       setPcStep("quiz");
+      setPcVisible(true); // setting this to true hides the agent modal automatically
     } catch (e: any) {
       Alert.alert("Error", e.message);
-      setPcVisible(false);
       setPcStep("idle");
+      setPcVisible(false);
     }
   };
 
-  // ── Pre-course quiz: answer ────────────────────────────────────────────────
-
   const handlePcAnswer = (option: string) => {
     if (!pcQuiz || pcStep !== "quiz") return;
-    const currentQ = pcQuiz.questions[pcIndex];
+    const currentQ  = pcQuiz.questions[pcIndex];
     const isCorrect = option === currentQ.answer;
-
     setPcOptionState(isCorrect ? "correct" : "wrong");
     setPcLastAnswer(option);
 
@@ -488,7 +348,6 @@ export default function AIScreen() {
       setPcAnswers(newAnswers);
       setPcOptionState("idle");
       setPcLastAnswer(null);
-
       if (pcIndex < pcQuiz.questions.length - 1) {
         setPcIndex((i) => i + 1);
       } else {
@@ -497,55 +356,25 @@ export default function AIScreen() {
     }, 700);
   };
 
-  // ── Pre-course quiz: submit ────────────────────────────────────────────────
-
   const finishPreCourseQuiz = async (answers: string[]) => {
     if (!pcQuiz) return;
     setPcStep("submitting");
-
     try {
-      const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
-      const { supabase } = await import("@/supabaseConfig");
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const res = await fetch(`${BACKEND_URL}/api/ai/pre-course-quiz/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          topic:       pcTopic,
-          questions:   pcQuiz.questions,
-          userAnswers: answers,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.message);
-
-      setPcResult(json.data);
+      const res = await apiSubmitPreCourseQuiz(pcTopic, pcQuiz.questions, answers);
+      setPcResult(res.data);
       setPcStep("result");
-
-      // Append success message to chat
-      setMessages((prev) => [
-        ...prev,
-        {
-          id:      genId(),
-          role:    "assistant",
-          content: `✅ Course created: **${json.data.courseTitle}**\n\nLevel: ${json.data.level} · Score: ${json.data.score}%\n\nYou can find it in your dashboard!`,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        id: genId(), role: "assistant",
+        content: `✅ Course created: ${res.data.courseTitle}\n\nLevel: ${res.data.level} · Score: ${res.data.score}%\n\nYou can find it in your dashboard!`,
+      }]);
     } catch (e: any) {
       Alert.alert("Course generation failed", e.message);
-      setPcStep("quiz"); // let them retry
+      setPcStep("quiz");
     }
   };
 
-  // ── Pre-course quiz: close ─────────────────────────────────────────────────
-
   const closePcQuiz = () => {
-    setPcVisible(false);
+    setPcVisible(false); // agent modal becomes visible again
     setPcStep("idle");
     setPcQuiz(null);
     setPcResult(null);
@@ -557,17 +386,14 @@ export default function AIScreen() {
   const goToCourse = () => {
     if (!pcResult) return;
     closePcQuiz();
-    router.push({
-      pathname: "/(tabs)/course",
-      params:   { courseId: pcResult.courseId },
-    } as any);
+    closeAgent();
+    router.push({ pathname: "/(tabs)/course", params: { courseId: pcResult.courseId } } as any);
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>AI Agents</Text>
@@ -581,11 +407,8 @@ export default function AIScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         <View style={styles.banner}>
           <Ionicons name="sparkles" size={18} color={PRIMARY} />
-          <Text style={styles.bannerText}>
-            6 specialized AI agents — each an expert at one thing
-          </Text>
+          <Text style={styles.bannerText}>6 specialized AI agents — each an expert at one thing</Text>
         </View>
-
         {AGENTS.map((agent) => (
           <TouchableOpacity key={agent.id} style={styles.card} onPress={() => openAgent(agent)}>
             <View style={[styles.iconBox, { backgroundColor: agent.bg }]}>
@@ -605,8 +428,8 @@ export default function AIScreen() {
         ))}
       </ScrollView>
 
-      {/* ══ Agent Chat Modal ══════════════════════════════════════════════════ */}
-      <Modal visible={!!selectedAgent} animationType="slide" presentationStyle="pageSheet">
+      {/* ══ Agent Chat Modal — hidden while quiz is open ══════════════════════ */}
+      <Modal visible={agentModalVisible} animationType="slide" presentationStyle="pageSheet">
         {selectedAgent && (
           <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
             <KeyboardAvoidingView
@@ -614,7 +437,6 @@ export default function AIScreen() {
               behavior={Platform.OS === "ios" ? "padding" : undefined}
               keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
             >
-              {/* Chat Header */}
               <View style={styles.chatHeader}>
                 <TouchableOpacity onPress={closeAgent} style={styles.backBtn}>
                   <Ionicons name="arrow-back" size={20} color="#333" />
@@ -632,7 +454,6 @@ export default function AIScreen() {
                 <View style={[styles.onlineDot, { backgroundColor: selectedAgent.color }]} />
               </View>
 
-              {/* History Picker */}
               <Modal visible={historyVisible} animationType="slide" presentationStyle="pageSheet">
                 <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
                   <View style={styles.historyHeader}>
@@ -645,12 +466,9 @@ export default function AIScreen() {
                   <View style={styles.historyActions}>
                     <TouchableOpacity
                       style={[styles.newChatBtn, { backgroundColor: selectedAgent.color }]}
-                      onPress={startNewChat}
-                      disabled={loadingMessages}
+                      onPress={startNewChat} disabled={loadingMessages}
                     >
-                      {loadingMessages
-                        ? <ActivityIndicator color="white" />
-                        : <Text style={styles.newChatBtnText}>New chat</Text>}
+                      {loadingMessages ? <ActivityIndicator color="white" /> : <Text style={styles.newChatBtnText}>New chat</Text>}
                     </TouchableOpacity>
                   </View>
                   <ScrollView contentContainerStyle={styles.historyList}>
@@ -660,19 +478,10 @@ export default function AIScreen() {
                       <Text style={styles.historyEmpty}>No previous chats yet.</Text>
                     ) : (
                       conversations.map((c) => (
-                        <TouchableOpacity
-                          key={c.id}
-                          style={styles.historyItem}
-                          onPress={() => openConversation(c)}
-                          disabled={loadingMessages}
-                        >
+                        <TouchableOpacity key={c.id} style={styles.historyItem} onPress={() => openConversation(c)} disabled={loadingMessages}>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.historyItemTitle} numberOfLines={1}>
-                              {c.title || "Chat"}
-                            </Text>
-                            <Text style={styles.historyItemMeta} numberOfLines={1}>
-                              {new Date(c.updated_at || c.created_at).toLocaleString()}
-                            </Text>
+                            <Text style={styles.historyItemTitle} numberOfLines={1}>{c.title || "Chat"}</Text>
+                            <Text style={styles.historyItemMeta} numberOfLines={1}>{new Date(c.updated_at || c.created_at).toLocaleString()}</Text>
                           </View>
                           <Ionicons name="chevron-forward" size={18} color="#bbb" />
                         </TouchableOpacity>
@@ -682,7 +491,6 @@ export default function AIScreen() {
                 </SafeAreaView>
               </Modal>
 
-              {/* Messages */}
               <ScrollView
                 style={styles.msgContainer}
                 contentContainerStyle={[styles.msgContent, { paddingBottom: insets.bottom + 88 }]}
@@ -691,25 +499,13 @@ export default function AIScreen() {
               >
                 {messages.map((msg) => (
                   <View key={msg.id}>
-                    <View
-                      style={[
-                        styles.bubble,
-                        msg.role === "user" ? styles.userBubble : styles.aiBubble,
-                      ]}
-                    >
+                    <View style={[styles.bubble, msg.role === "user" ? styles.userBubble : styles.aiBubble]}>
                       {msg.role === "assistant" && (
                         <View style={[styles.aiAvatar, { backgroundColor: selectedAgent.bg }]}>
                           <Text style={{ fontSize: 16 }}>{selectedAgent.emoji}</Text>
                         </View>
                       )}
-                      <View
-                        style={[
-                          styles.bubbleInner,
-                          msg.role === "user"
-                            ? [styles.userInner, { backgroundColor: selectedAgent.color }]
-                            : styles.aiInner,
-                        ]}
-                      >
+                      <View style={[styles.bubbleInner, msg.role === "user" ? [styles.userInner, { backgroundColor: selectedAgent.color }] : styles.aiInner]}>
                         {msg.isLoading ? (
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 4 }}>
                             <ActivityIndicator size="small" color="#999" />
@@ -722,8 +518,6 @@ export default function AIScreen() {
                         )}
                       </View>
                     </View>
-
-                    {/* Inline course suggestion card — only on assistant messages */}
                     {msg.role === "assistant" && msg.courseSuggestion && (
                       <View style={{ paddingLeft: 48 }}>
                         <CourseSuggestionCard
@@ -737,7 +531,6 @@ export default function AIScreen() {
                 ))}
               </ScrollView>
 
-              {/* Input */}
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.textInput}
@@ -748,13 +541,8 @@ export default function AIScreen() {
                   multiline
                 />
                 <TouchableOpacity
-                  style={[
-                    styles.sendBtn,
-                    { backgroundColor: selectedAgent.color },
-                    (!input.trim() || sending) && { opacity: 0.4 },
-                  ]}
-                  onPress={sendMessage}
-                  disabled={!input.trim() || sending}
+                  style={[styles.sendBtn, { backgroundColor: selectedAgent.color }, (!input.trim() || sending) && { opacity: 0.4 }]}
+                  onPress={sendMessage} disabled={!input.trim() || sending}
                 >
                   <Ionicons name="send" size={18} color="white" />
                 </TouchableOpacity>
@@ -768,16 +556,6 @@ export default function AIScreen() {
       <Modal visible={pcVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
 
-          {/* Generating */}
-          {pcStep === "generating" && (
-            <View style={pcStyles.centered}>
-              <ActivityIndicator size="large" color="#3b82f6" />
-              <Text style={pcStyles.generatingTitle}>Building your level quiz…</Text>
-              <Text style={pcStyles.generatingSubtitle}>Topic: {pcTopic}</Text>
-            </View>
-          )}
-
-          {/* Quiz */}
           {pcStep === "quiz" && pcQuiz && (
             <>
               <View style={pcStyles.header}>
@@ -790,56 +568,29 @@ export default function AIScreen() {
                 </View>
                 <View style={{ width: 36 }} />
               </View>
-
-              {/* Progress bar */}
               <View style={pcStyles.progressBg}>
-                <View style={[pcStyles.progressFill, {
-                  width: `${(pcIndex / pcQuiz.questions.length) * 100}%`,
-                }]} />
+                <View style={[pcStyles.progressFill, { width: `${(pcIndex / pcQuiz.questions.length) * 100}%` }]} />
               </View>
-
               <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
                 <View style={pcStyles.quizMeta}>
-                  <Text style={pcStyles.quizCounter}>
-                    {pcIndex + 1} / {pcQuiz.questions.length}
-                  </Text>
-                  <View style={[pcStyles.diffBadge, {
-                    backgroundColor: (DIFFICULTY_COLOR[pcQuiz.questions[pcIndex]?.difficulty] ?? "#999") + "20",
-                  }]}>
-                    <Text style={[pcStyles.diffText, {
-                      color: DIFFICULTY_COLOR[pcQuiz.questions[pcIndex]?.difficulty] ?? "#999",
-                    }]}>
+                  <Text style={pcStyles.quizCounter}>{pcIndex + 1} / {pcQuiz.questions.length}</Text>
+                  <View style={[pcStyles.diffBadge, { backgroundColor: (DIFFICULTY_COLOR[pcQuiz.questions[pcIndex]?.difficulty] ?? "#999") + "20" }]}>
+                    <Text style={[pcStyles.diffText, { color: DIFFICULTY_COLOR[pcQuiz.questions[pcIndex]?.difficulty] ?? "#999" }]}>
                       {pcQuiz.questions[pcIndex]?.difficulty}
                     </Text>
                   </View>
                 </View>
-
                 {pcQuiz.questions[pcIndex]?.topic && (
                   <Text style={pcStyles.topicLabel}>📌 {pcQuiz.questions[pcIndex].topic}</Text>
                 )}
-
-                <Text style={pcStyles.questionText}>
-                  {pcQuiz.questions[pcIndex]?.question}
-                </Text>
-
+                <Text style={pcStyles.questionText}>{pcQuiz.questions[pcIndex]?.question}</Text>
                 <View style={pcStyles.options}>
                   {pcQuiz.questions[pcIndex]?.options.map((opt, i) => {
                     const correct = pcQuiz.questions[pcIndex].answer;
                     return (
                       <OptionButton
-                        key={i}
-                        option={opt}
-                        index={i}
-                        onPress={() => handlePcAnswer(opt)}
-                        state={
-                          pcOptionState === "idle"
-                            ? "idle"
-                            : opt === correct
-                            ? "correct"
-                            : opt === pcLastAnswer
-                            ? "wrong"
-                            : "idle"
-                        }
+                        key={i} option={opt} index={i} onPress={() => handlePcAnswer(opt)}
+                        state={pcOptionState === "idle" ? "idle" : opt === correct ? "correct" : opt === pcLastAnswer ? "wrong" : "idle"}
                       />
                     );
                   })}
@@ -848,7 +599,6 @@ export default function AIScreen() {
             </>
           )}
 
-          {/* Submitting */}
           {pcStep === "submitting" && (
             <View style={pcStyles.centered}>
               <ActivityIndicator size="large" color="#3b82f6" />
@@ -857,7 +607,6 @@ export default function AIScreen() {
             </View>
           )}
 
-          {/* Result */}
           {pcStep === "result" && pcResult && (() => {
             const lm = LEVEL_META[pcResult.level] ?? LEVEL_META.beginner;
             return (
@@ -870,23 +619,14 @@ export default function AIScreen() {
                   </TouchableOpacity>
                 </View>
                 <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-                  {/* Score card */}
                   <View style={[pcStyles.resultCard, { borderColor: lm.color }]}>
-                    <Text style={{ fontSize: 44 }}>
-                      {pcResult.score >= 80 ? "🏆" : pcResult.score >= 50 ? "📈" : "🌱"}
-                    </Text>
-                    <Text style={[pcStyles.resultScore, { color: lm.color }]}>
-                      {pcResult.score}%
-                    </Text>
+                    <Text style={{ fontSize: 44 }}>{pcResult.score >= 80 ? "🏆" : pcResult.score >= 50 ? "📈" : "🌱"}</Text>
+                    <Text style={[pcStyles.resultScore, { color: lm.color }]}>{pcResult.score}%</Text>
                     <View style={[pcStyles.levelBadge, { backgroundColor: lm.bg }]}>
-                      <Text style={[pcStyles.levelBadgeText, { color: lm.color }]}>
-                        {lm.icon} {lm.label} Level
-                      </Text>
+                      <Text style={[pcStyles.levelBadgeText, { color: lm.color }]}>{lm.icon} {lm.label} Level</Text>
                     </View>
                     <Text style={pcStyles.resultMessage}>{pcResult.message}</Text>
                   </View>
-
-                  {/* Course name */}
                   <View style={pcStyles.courseNameCard}>
                     <Ionicons name="sparkles" size={20} color="#3b82f6" />
                     <View style={{ flex: 1 }}>
@@ -894,16 +634,13 @@ export default function AIScreen() {
                       <Text style={pcStyles.courseNameTitle}>{pcResult.courseTitle}</Text>
                     </View>
                   </View>
-
                   <Text style={pcStyles.resultInfo}>
                     Your course has been calibrated to your level. As you complete chapters and quizzes, the difficulty will adapt automatically.
                   </Text>
-
                   <TouchableOpacity style={pcStyles.goBtn} onPress={goToCourse}>
                     <Ionicons name="arrow-forward-circle" size={22} color="white" />
                     <Text style={pcStyles.goBtnText}>Go to My Course</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity style={pcStyles.laterBtn} onPress={closePcQuiz}>
                     <Text style={pcStyles.laterBtnText}>Later (find it in Dashboard)</Text>
                   </TouchableOpacity>
@@ -923,161 +660,93 @@ export default function AIScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    padding: 20, backgroundColor: "white",
-  },
+  header:         { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, backgroundColor: "white" },
   headerTitle:    { fontSize: 26, fontWeight: "bold", color: "#333" },
   headerSubtitle: { fontSize: 13, color: "#666", marginTop: 2 },
-  quizBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center",
-  },
-  list:    { padding: 16, paddingBottom: 40 },
-  banner: {
-    flexDirection: "row", alignItems: "center", backgroundColor: PRIMARY + "15",
-    borderRadius: 12, padding: 12, marginBottom: 20, gap: 10,
-    borderWidth: 1, borderColor: PRIMARY + "30",
-  },
-  bannerText: { fontSize: 13, color: "#444", flex: 1, lineHeight: 18 },
-  card: {
-    backgroundColor: "white", borderRadius: 16, padding: 16,
-    flexDirection: "row", alignItems: "center", marginBottom: 12, elevation: 1, gap: 14,
-  },
-  iconBox:   { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  emoji:     { fontSize: 28 },
-  cardInfo:  { flex: 1 },
-  nameRow:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" },
-  agentName: { fontSize: 16, fontWeight: "bold", color: "#333" },
-  tag:       { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  tagText:   { fontSize: 11, fontWeight: "600" },
-  agentDesc: { fontSize: 13, color: "#666", lineHeight: 18 },
-  chatHeader: {
-    flexDirection: "row", alignItems: "center", padding: 16,
-    backgroundColor: "white", elevation: 2, gap: 12,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
-  },
-  chatIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  chatName:    { fontSize: 16, fontWeight: "bold", color: "#333" },
-  chatTagline: { fontSize: 12, color: "#999" },
-  onlineDot:   { width: 10, height: 10, borderRadius: 5 },
-  historyBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
-  },
-  msgContainer: { flex: 1, backgroundColor: "#f7f8f6" },
-  msgContent:   { padding: 16, paddingBottom: 8 },
-  bubble:       { flexDirection: "row", alignItems: "flex-end", marginBottom: 12 },
-  userBubble:   { justifyContent: "flex-end" },
-  aiBubble:     { justifyContent: "flex-start" },
-  aiAvatar: {
-    width: 32, height: 32, borderRadius: 10,
-    alignItems: "center", justifyContent: "center", marginRight: 8,
-  },
-  bubbleInner:  { maxWidth: "78%", borderRadius: 18, padding: 12 },
-  userInner:    { borderBottomRightRadius: 4 },
-  aiInner:      { backgroundColor: "white", borderBottomLeftRadius: 4, elevation: 1 },
-  msgText:      { fontSize: 14, lineHeight: 22 },
-  inputRow: {
-    flexDirection: "row", alignItems: "flex-end", padding: 12,
-    backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10,
-  },
-  textInput: {
-    flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333",
-    maxHeight: 100, textAlignVertical: "center",
-  },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
-  historyHeader: {
-    flexDirection: "row", alignItems: "center", padding: 16,
-    backgroundColor: "white", elevation: 2,
-  },
-  historyTitle:    { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "bold", color: "#333" },
-  historyActions:  { padding: 16 },
-  newChatBtn:      { paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  newChatBtnText:  { color: "white", fontWeight: "bold" },
-  historyList:     { padding: 16, paddingBottom: 30, gap: 10 },
-  historyEmpty:    { color: "#666", textAlign: "center", marginTop: 20 },
-  historyItem: {
-    backgroundColor: "white", borderRadius: 14, padding: 14,
-    flexDirection: "row", alignItems: "center", gap: 10,
-  },
+  quizBtn:        { width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center" },
+  list:           { padding: 16, paddingBottom: 40 },
+  banner:         { flexDirection: "row", alignItems: "center", backgroundColor: PRIMARY + "15", borderRadius: 12, padding: 12, marginBottom: 20, gap: 10, borderWidth: 1, borderColor: PRIMARY + "30" },
+  bannerText:     { fontSize: 13, color: "#444", flex: 1, lineHeight: 18 },
+  card:           { backgroundColor: "white", borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 12, elevation: 1, gap: 14 },
+  iconBox:        { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  emoji:          { fontSize: 28 },
+  cardInfo:       { flex: 1 },
+  nameRow:        { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" },
+  agentName:      { fontSize: 16, fontWeight: "bold", color: "#333" },
+  tag:            { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  tagText:        { fontSize: 11, fontWeight: "600" },
+  agentDesc:      { fontSize: 13, color: "#666", lineHeight: 18 },
+  chatHeader:     { flexDirection: "row", alignItems: "center", padding: 16, backgroundColor: "white", elevation: 2, gap: 12 },
+  backBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  chatIcon:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  chatName:       { fontSize: 16, fontWeight: "bold", color: "#333" },
+  chatTagline:    { fontSize: 12, color: "#999" },
+  onlineDot:      { width: 10, height: 10, borderRadius: 5 },
+  historyBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  msgContainer:   { flex: 1, backgroundColor: "#f7f8f6" },
+  msgContent:     { padding: 16, paddingBottom: 8 },
+  bubble:         { flexDirection: "row", alignItems: "flex-end", marginBottom: 12 },
+  userBubble:     { justifyContent: "flex-end" },
+  aiBubble:       { justifyContent: "flex-start" },
+  aiAvatar:       { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 8 },
+  bubbleInner:    { maxWidth: "78%", borderRadius: 18, padding: 12 },
+  userInner:      { borderBottomRightRadius: 4 },
+  aiInner:        { backgroundColor: "white", borderBottomLeftRadius: 4, elevation: 1 },
+  msgText:        { fontSize: 14, lineHeight: 22 },
+  inputRow:       { flexDirection: "row", alignItems: "flex-end", padding: 12, backgroundColor: "white", borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 10 },
+  textInput:      { flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: "#333", maxHeight: 100, textAlignVertical: "center" },
+  sendBtn:        { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  historyHeader:  { flexDirection: "row", alignItems: "center", padding: 16, backgroundColor: "white", elevation: 2 },
+  historyTitle:   { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "bold", color: "#333" },
+  historyActions: { padding: 16 },
+  newChatBtn:     { paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  newChatBtnText: { color: "white", fontWeight: "bold" },
+  historyList:    { padding: 16, paddingBottom: 30, gap: 10 },
+  historyEmpty:   { color: "#666", textAlign: "center", marginTop: 20 },
+  historyItem:    { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 10 },
   historyItemTitle: { fontSize: 14, fontWeight: "600", color: "#333" },
   historyItemMeta:  { fontSize: 12, color: "#999", marginTop: 4 },
 });
 
 const pcStyles = StyleSheet.create({
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  centered:           { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   generatingTitle:    { fontSize: 18, fontWeight: "bold", color: "#333", marginTop: 20, textAlign: "center" },
   generatingSubtitle: { fontSize: 14, color: "#666", marginTop: 8, textAlign: "center" },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    padding: 16, backgroundColor: "white", elevation: 2,
-  },
-  headerTitle: { fontSize: 16, fontWeight: "bold", color: "#333" },
-  headerSub:   { fontSize: 11, color: "#999", marginTop: 2, textAlign: "center" },
-  closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
-  },
-  progressBg:   { height: 5, backgroundColor: "#e5e7eb" },
-  progressFill: { height: 5, backgroundColor: "#3b82f6" },
-  quizMeta:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  quizCounter:  { fontSize: 13, color: "#999" },
-  diffBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  diffText:     { fontSize: 12, fontWeight: "600" },
-  topicLabel:   { fontSize: 12, color: "#8b5cf6", fontWeight: "600", marginBottom: 8 },
-  questionText: { fontSize: 18, fontWeight: "bold", color: "#333", lineHeight: 26, marginBottom: 24 },
-  options:      { gap: 12 },
-  optionBtn: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "white",
-    borderRadius: 14, padding: 16, gap: 14, elevation: 1, borderWidth: 1.5, borderColor: "#e5e7eb",
-  },
-  optionLetter: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
-  },
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
+  headerTitle:    { fontSize: 16, fontWeight: "bold", color: "#333" },
+  headerSub:      { fontSize: 11, color: "#999", marginTop: 2, textAlign: "center" },
+  closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  progressBg:     { height: 5, backgroundColor: "#e5e7eb" },
+  progressFill:   { height: 5, backgroundColor: "#3b82f6" },
+  quizMeta:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  quizCounter:    { fontSize: 13, color: "#999" },
+  diffBadge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  diffText:       { fontSize: 12, fontWeight: "600" },
+  topicLabel:     { fontSize: 12, color: "#8b5cf6", fontWeight: "600", marginBottom: 8 },
+  questionText:   { fontSize: 18, fontWeight: "bold", color: "#333", lineHeight: 26, marginBottom: 24 },
+  options:        { gap: 12 },
+  optionBtn:      { flexDirection: "row", alignItems: "center", backgroundColor: "white", borderRadius: 14, padding: 16, gap: 14, elevation: 1, borderWidth: 1.5, borderColor: "#e5e7eb" },
+  optionLetter:   { width: 32, height: 32, borderRadius: 16, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   optionLetterText: { fontSize: 13, fontWeight: "bold", color: "#555" },
-  optionText:       { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
-  resultCard: {
-    backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center",
-    marginBottom: 16, elevation: 2, borderWidth: 2,
-  },
-  resultScore:   { fontSize: 48, fontWeight: "bold", marginTop: 8 },
-  levelBadge:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginTop: 8 },
-  levelBadgeText:{ fontSize: 14, fontWeight: "bold" },
-  resultMessage: { fontSize: 14, color: "#666", textAlign: "center", marginTop: 12, lineHeight: 20 },
-  courseNameCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#eff6ff", borderRadius: 14, padding: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: "#bfdbfe",
-  },
-  courseNameLabel: { fontSize: 11, color: "#3b82f6", fontWeight: "600" },
-  courseNameTitle: { fontSize: 15, fontWeight: "bold", color: "#1e3a8a", marginTop: 2 },
-  resultInfo: { fontSize: 13, color: "#666", lineHeight: 20, textAlign: "center", marginBottom: 24 },
-  goBtn: {
-    backgroundColor: "#3b82f6", borderRadius: 14, padding: 16,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12,
-  },
-  goBtnText:   { color: "white", fontWeight: "bold", fontSize: 16 },
-  laterBtn:    { alignItems: "center", padding: 12 },
-  laterBtnText:{ color: "#999", fontSize: 14 },
-
-  // Suggestion card (inline in chat)
-  suggestionCard: {
-    backgroundColor: "#eff6ff", borderRadius: 14, padding: 14, marginTop: 8,
-    marginBottom: 4, borderWidth: 1, borderColor: "#bfdbfe",
-  },
-  suggestionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  suggestionTitle:  { fontSize: 13, fontWeight: "bold", color: "#1d4ed8" },
-  suggestionTopic:  { fontSize: 15, fontWeight: "bold", color: "#1e3a8a", marginBottom: 6 },
-  suggestionSub:    { fontSize: 12, color: "#3b82f6", lineHeight: 17, marginBottom: 12 },
-  suggestionBtn: {
-    backgroundColor: "#3b82f6", borderRadius: 10, paddingVertical: 10,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-  },
+  optionText:     { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
+  resultCard:     { backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center", marginBottom: 16, elevation: 2, borderWidth: 2 },
+  resultScore:    { fontSize: 48, fontWeight: "bold", marginTop: 8 },
+  levelBadge:     { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginTop: 8 },
+  levelBadgeText: { fontSize: 14, fontWeight: "bold" },
+  resultMessage:  { fontSize: 14, color: "#666", textAlign: "center", marginTop: 12, lineHeight: 20 },
+  courseNameCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#eff6ff", borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#bfdbfe" },
+  courseNameLabel:{ fontSize: 11, color: "#3b82f6", fontWeight: "600" },
+  courseNameTitle:{ fontSize: 15, fontWeight: "bold", color: "#1e3a8a", marginTop: 2 },
+  resultInfo:     { fontSize: 13, color: "#666", lineHeight: 20, textAlign: "center", marginBottom: 24 },
+  goBtn:          { backgroundColor: "#3b82f6", borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 },
+  goBtnText:      { color: "white", fontWeight: "bold", fontSize: 16 },
+  laterBtn:       { alignItems: "center", padding: 12 },
+  laterBtnText:   { color: "#999", fontSize: 14 },
+  suggestionCard:    { backgroundColor: "#eff6ff", borderRadius: 14, padding: 14, marginTop: 8, marginBottom: 4, borderWidth: 1, borderColor: "#bfdbfe" },
+  suggestionHeader:  { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  suggestionTitle:   { fontSize: 13, fontWeight: "bold", color: "#1d4ed8" },
+  suggestionTopic:   { fontSize: 15, fontWeight: "bold", color: "#1e3a8a", marginBottom: 6 },
+  suggestionSub:     { fontSize: 12, color: "#3b82f6", lineHeight: 17, marginBottom: 12 },
+  suggestionBtn:     { backgroundColor: "#3b82f6", borderRadius: 10, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   suggestionBtnText: { color: "white", fontWeight: "bold", fontSize: 13 },
 });

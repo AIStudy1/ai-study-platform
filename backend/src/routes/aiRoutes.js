@@ -9,6 +9,8 @@ import {
   generateQuizFromFile,
   saveDiagnosticResult,
   agentChat,
+  generatePreCourseQuiz,
+  submitPreCourseQuiz,
 } from "../controllers/aiController.js";
 import {
   listConversations,
@@ -39,19 +41,23 @@ router.post("/quiz-from-file", generateQuizFromFile);
 router.post("/save-diagnostic", saveDiagnosticResult);
 router.post("/agent-chat", agentChat);
 
-// aiCourseController routes 
-router.get("/ai-courses", getUserCourses);
-router.post("/ai-courses", createCourse);
+// ─── Pre-course quiz (new flow) ───────────────────────────────────────────────
+router.post("/pre-course-quiz/generate", generatePreCourseQuiz);
+router.post("/pre-course-quiz/submit",   submitPreCourseQuiz);
+
+// ─── AI Course routes ─────────────────────────────────────────────────────────
+router.get("/ai-courses",    getUserCourses);
+router.post("/ai-courses",   createCourse);
 router.get("/ai-courses/:id", getCourseById);
 router.delete("/ai-courses/:id", deleteCourse);
 router.patch("/ai-courses/:courseId/chapters/:chapterId/complete", completeChapter);
 router.post("/ai-courses/:courseId/entry-quiz/generate", generateEntryQuiz);
-router.post("/ai-courses/:courseId/entry-quiz/submit", submitEntryQuiz);
+router.post("/ai-courses/:courseId/entry-quiz/submit",   submitEntryQuiz);
 router.patch("/ai-courses/:courseId/quizzes/:quizId/submit", submitQuiz);
 
-// Chat history / threads
-router.get("/conversations", listConversations);
-router.post("/conversations", createConversation);
+// ─── Chat history / threads ───────────────────────────────────────────────────
+router.get("/conversations",              listConversations);
+router.post("/conversations",             createConversation);
 router.get("/conversations/:id/messages", getConversationMessages);
 
 export default router;
