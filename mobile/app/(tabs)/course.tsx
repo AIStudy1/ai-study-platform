@@ -163,7 +163,7 @@ export default function CourseDetail() {
   const [entryQuizSubmitting, setEntryQuizSubmitting] = useState(false);
   const [entryQuizResult, setEntryQuizResult] = useState<EntryQuizResult | null>(null);
   const [entryOptionState, setEntryOptionState] = useState<"idle"|"correct"|"wrong">("idle");
-  const [lastEntryAnswer, setLastEntryAnswer] = useState<string | null>(null); // ← FIX 1
+  const [lastEntryAnswer, setLastEntryAnswer] = useState<string | null>(null);
 
   // ── Chapter quiz state ─────────────────────────────────────────────────────
   const [activeQuiz, setActiveQuiz] = useState<{ chapter: Chapter; quiz: Quiz; allQuestions: Question[] } | null>(null);
@@ -180,7 +180,7 @@ export default function CourseDetail() {
   const genId = () => Math.random().toString(36).substr(2, 9);
 
   useEffect(() => { if (courseId) fetchCourse(); }, [courseId]);
- 
+
   const { settings: pomodoroSettings, start: pomodoroStart, state: pomodoroState } = usePomodoro();
 
   const fetchCourse = async () => {
@@ -234,7 +234,7 @@ export default function CourseDetail() {
     }
   };
 
-  // ── Entry quiz ─────────────────────────────────────────────────────────────
+  // ── Entry quiz (retake only) ───────────────────────────────────────────────
 
   const handleStartEntryQuiz = async () => {
     if (!course) return;
@@ -271,13 +271,13 @@ export default function CourseDetail() {
     const isCorrect = option === currentQ.answer;
 
     setEntryOptionState(isCorrect ? "correct" : "wrong");
-    setLastEntryAnswer(option); // ← FIX 2a
+    setLastEntryAnswer(option);
 
     setTimeout(() => {
       const newAnswers = [...entryQuizAnswers, option];
       setEntryQuizAnswers(newAnswers);
       setEntryOptionState("idle");
-      setLastEntryAnswer(null); // ← FIX 2b
+      setLastEntryAnswer(null);
 
       if (entryQuizIndex < questions.length - 1) {
         setEntryQuizIndex((i) => i + 1);
@@ -307,7 +307,7 @@ export default function CourseDetail() {
     setEntryQuizResult(null);
     setEntryQuizIndex(0);
     setEntryQuizAnswers([]);
-    setLastEntryAnswer(null); // ← FIX 3
+    setLastEntryAnswer(null);
   };
 
   // ── Chapter quiz ───────────────────────────────────────────────────────────
@@ -319,7 +319,6 @@ export default function CourseDetail() {
     }
     if (!chapter.quiz) return;
 
-    // ← FIX 5 : bloquer si le quiz du chapitre précédent n'est pas passé
     if (course) {
       const sorted = [...course.chapters].sort((a, b) => a.order_index - b.order_index);
       const idx = sorted.findIndex((c) => c.id === chapter.id);
@@ -487,42 +486,24 @@ export default function CourseDetail() {
           <XPBar xp={course.course_xp || 0} level={Math.floor((course.course_xp || 0) / 1000) + 1} />
         </View>
 
-        {!entryQuizTaken ? (
-          <TouchableOpacity
-            style={styles.entryQuizBanner}
-            onPress={handleStartEntryQuiz}
-            disabled={entryQuizLoading}
-          >
-            <View style={styles.entryQuizBannerLeft}>
-              <View style={styles.entryQuizIcon}>
-                {entryQuizLoading
-                  ? <ActivityIndicator color="white" size="small" />
-                  : <Ionicons name="flask" size={22} color="white" />}
-              </View>
-              <View>
-                <Text style={styles.entryQuizTitle}>Take Entry Quiz</Text>
-                <Text style={styles.entryQuizSub}>
-                  Test your knowledge → AI sets your starting level
-                </Text>
-              </View>
-            </View>
-            <Ionicons name="arrow-forward" size={18} color="white" />
-          </TouchableOpacity>
-        ) : (
+        {/* ── Level badge — only shown after assessment, with Retake option ── */}
+        {entryQuizTaken && (
           <View style={[styles.entryQuizBanner, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
             <View style={styles.entryQuizBannerLeft}>
               <View style={[styles.entryQuizIcon, { backgroundColor: "#22c55e" }]}>
                 <Ionicons name="checkmark" size={22} color="white" />
               </View>
               <View>
-                <Text style={[styles.entryQuizTitle, { color: "#166534" }]}>Entry Quiz Completed</Text>
+                <Text style={[styles.entryQuizTitle, { color: "#166534" }]}>Level Assessed</Text>
                 <Text style={[styles.entryQuizSub, { color: "#4ade80" }]}>
                   Score: {course.entry_quiz_score}% · Level: {diffMeta.label}
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={handleStartEntryQuiz}>
-              <Text style={{ color: "#22c55e", fontWeight: "600", fontSize: 12 }}>Retake</Text>
+            <TouchableOpacity onPress={handleStartEntryQuiz} disabled={entryQuizLoading}>
+              {entryQuizLoading
+                ? <ActivityIndicator size="small" color="#22c55e" />
+                : <Text style={{ color: "#22c55e", fontWeight: "600", fontSize: 12 }}>Retake</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -721,7 +702,7 @@ export default function CourseDetail() {
                   color={course.entry_quiz_passed ? PRIMARY : "#f97316"}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.entryResultTitle}>Entry Quiz</Text>
+                  <Text style={styles.entryResultTitle}>Level Assessment</Text>
                   <Text style={styles.entryResultSub}>
                     Score: {course.entry_quiz_score}% · Starting level: {diffMeta.label}
                   </Text>
@@ -837,14 +818,14 @@ export default function CourseDetail() {
         )}
       </Modal>
 
-      {/* ══ Entry Quiz Modal ════════════════════════════════════════════════ */}
+      {/* ══ Entry Quiz Modal (Retake) ════════════════════════════════════════ */}
       <Modal visible={entryQuizVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
           {entryQuizResult ? (
             <>
               <View style={styles.modalHeader}>
                 <View style={{ width: 36 }} />
-                <Text style={styles.modalHeaderTitle}>Entry Quiz Result</Text>
+                <Text style={styles.modalHeaderTitle}>Level Assessment Result</Text>
                 <TouchableOpacity onPress={closeEntryQuiz} style={styles.backButton}>
                   <Ionicons name="close" size={20} color="#333" />
                 </TouchableOpacity>
@@ -862,7 +843,7 @@ export default function CourseDetail() {
                     color: entryQuizResult.passed ? PRIMARY : "#f97316",
                   }]}>{entryQuizResult.score}%</Text>
                   <Text style={styles.reportStatus}>
-                    Starting Level: {DIFFICULTY_META[entryQuizResult.startingLevel as Difficulty]?.label || entryQuizResult.startingLevel}
+                    Level: {DIFFICULTY_META[entryQuizResult.startingLevel as Difficulty]?.label || entryQuizResult.startingLevel}
                   </Text>
                   <Text style={styles.reportSummary}>{entryQuizResult.message}</Text>
                 </View>
@@ -871,16 +852,7 @@ export default function CourseDetail() {
                   <View style={[styles.reportSection, { backgroundColor: PRIMARY + "15", borderRadius: 14, padding: 14 }]}>
                     <Text style={styles.reportSectionTitle}>⚡ Chapters Unlocked</Text>
                     <Text style={{ fontSize: 14, color: "#444", lineHeight: 20 }}>
-                      Based on your score, {entryQuizResult.chaptersSkipped} beginner chapter{entryQuizResult.chaptersSkipped > 1 ? "s" : ""} have been marked complete. You can still read them anytime.
-                    </Text>
-                  </View>
-                )}
-
-                {entryQuizResult.recommendedChapter && (
-                  <View style={[styles.reportSection, { backgroundColor: "#eff6ff", borderRadius: 14, padding: 14 }]}>
-                    <Text style={styles.reportSectionTitle}>🎯 Recommended Start</Text>
-                    <Text style={{ fontSize: 14, color: "#444" }}>
-                      Chapter {entryQuizResult.recommendedChapter.order_index}: {entryQuizResult.recommendedChapter.title}
+                      {entryQuizResult.chaptersSkipped} beginner chapter{entryQuizResult.chaptersSkipped > 1 ? "s" : ""} marked complete based on your score.
                     </Text>
                   </View>
                 )}
@@ -907,7 +879,7 @@ export default function CourseDetail() {
 
                 <TouchableOpacity style={styles.completeBtn} onPress={closeEntryQuiz}>
                   <Ionicons name="arrow-forward" size={20} color="white" />
-                  <Text style={styles.completeBtnText}>Start Learning</Text>
+                  <Text style={styles.completeBtnText}>Back to Course</Text>
                 </TouchableOpacity>
               </ScrollView>
             </>
@@ -917,7 +889,7 @@ export default function CourseDetail() {
                 <TouchableOpacity onPress={closeEntryQuiz} style={styles.backButton}>
                   <Ionicons name="close" size={20} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.modalHeaderTitle}>{entryQuizData.title || "Entry Quiz"}</Text>
+                <Text style={styles.modalHeaderTitle}>{entryQuizData.title || "Level Check"}</Text>
                 <View style={{ width: 36 }} />
               </View>
               <View style={styles.progressBg}>
@@ -1149,11 +1121,11 @@ const styles = StyleSheet.create({
   courseTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4, marginTop: 4 },
   courseSubject: { fontSize: 14, color: "#999", marginBottom: 12 },
   courseDescription: { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 22 },
-  entryQuizBanner: { backgroundColor: "#8b5cf6", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: "transparent" },
+  entryQuizBanner: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1 },
   entryQuizBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  entryQuizIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  entryQuizTitle: { fontSize: 15, fontWeight: "bold", color: "white" },
-  entryQuizSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  entryQuizIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  entryQuizTitle: { fontSize: 15, fontWeight: "bold" },
+  entryQuizSub: { fontSize: 12, marginTop: 2 },
   entryResultCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderRadius: 14, padding: 14, marginBottom: 16, elevation: 1, borderWidth: 1.5 },
   entryResultTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
   entryResultSub: { fontSize: 12, color: "#666", marginTop: 2 },

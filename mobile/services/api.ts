@@ -1,6 +1,6 @@
 import { supabase } from "@/supabaseConfig";
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
+import Constants from "expo-constants";
+const BACKEND_URL = Constants.expoConfig?.extra?.apiUrl ?? "http://192.168.100.65:8000";
 
 const getToken = async (): Promise<string | null> => {
   const { data } = await supabase.auth.getSession();
