@@ -14,6 +14,12 @@ async function chat(messages) {
   return response.choices[0].message.content;
 }
 
+function parseJSON(raw) {
+  const clean = String(raw).replace(/```json|```/g, "").trim();
+  const match = clean.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  return JSON.parse(match ? match[0] : clean);
+}
+
 function fallbackTitleFromMessage(text) {
   const cleaned = String(text ?? "")
     .replace(/\s+/g, " ")
@@ -54,7 +60,6 @@ async function generateConversationTitle({ agentName, userMessage }) {
 
 function looksLikeCourseIntent(text) {
   const t = String(text ?? "").toLowerCase();
-  // English/French/Arabic quick heuristics (AI will refine).
   return (
     t.includes("learn") ||
     t.includes("study") ||
@@ -100,8 +105,6 @@ async function extractCourseSuggestion({ userMessage }) {
 
     const raw = response.choices?.[0]?.message?.content ?? "";
     const clean = String(raw).replace(/```json|```/g, "").trim();
-
-    // Be resilient: the model may wrap JSON with extra text.
     const jsonMatch = clean.match(/\{[\s\S]*\}/);
     const jsonText = (jsonMatch ? jsonMatch[0] : clean).trim();
     const parsed = JSON.parse(jsonText);
@@ -483,11 +486,8 @@ export const agentChat = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid agent ID" });
     }
 
-    // Persistent, shared memory across all agents (per user).
-    // We store and load chat messages from Supabase using the user's JWT so RLS policies can apply.
     const authedSupabase = getAuthedSupabaseClient(req.accessToken);
 
-    // Validate conversation belongs to this user.
     const { data: conv, error: convError } = await authedSupabase
       .from("ai_conversations")
       .select("id, title, title_is_auto")
@@ -527,14 +527,11 @@ export const agentChat = async (req, res) => {
 
     const reply = await chat(messages);
 
-    // Suggest adding an AI-generated course when the user expresses learning intent.
-    // (Front-end shows a prompt like ChatGPT/Claude.)
     const courseSuggestion =
       agentId === "course_builder"
         ? { shouldSuggest: false }
         : await extractCourseSuggestion({ userMessage: message });
 
-    // Check if this is the first user message in the conversation.
     const { count: userCount, error: countError } = await authedSupabase
       .from("ai_messages")
       .select("id", { count: "exact", head: true })
@@ -543,16 +540,12 @@ export const agentChat = async (req, res) => {
       .eq("role", "user");
     if (countError) throw countError;
 
-    // Persist conversation turns (shared across agents).
-    // Note: requires `ai_messages` table + RLS policies in Supabase.
     const { error: insertError } = await authedSupabase.from("ai_messages").insert([
       { user_id: req.user.id, conversation_id: conversationId, agent_id: agentId, role: "user", content: message },
       { user_id: req.user.id, conversation_id: conversationId, agent_id: agentId, role: "assistant", content: reply },
     ]);
     if (insertError) throw insertError;
 
-    // Auto-title the conversation based on the first message (same language).
-    // Only do this if it still has the default title and is marked auto.
     const isDefaultTitle = !conv?.title || conv.title === "New chat";
     const isAuto = conv?.title_is_auto !== false;
     const isFirst = (userCount ?? 0) === 0;
@@ -574,14 +567,12 @@ export const agentChat = async (req, res) => {
         .eq("id", conversationId);
     }
 
-    // Touch conversation updated_at
     await authedSupabase
       .from("ai_conversations")
       .update({ updated_at: new Date().toISOString() })
       .eq("user_id", req.user.id)
       .eq("id", conversationId);
 
-    // Log activity
     await supabase.from("activity_logs").insert({
       user_id: req.user.id,
       type: "agent_chat",
@@ -591,6 +582,217 @@ export const agentChat = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: { reply, conversationId, conversationTitle, courseSuggestion },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── POST /api/ai/pre-course-quiz/generate ────────────────────────────────────
+export const generatePreCourseQuiz = async (req, res) => {
+  try {
+    const { topic } = req.body;
+    if (!topic) {
+      return res.status(400).json({ success: false, message: "Topic is required" });
+    }
+
+    const response = await groq.chat.completions.create({
+      model: MODEL,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an academic assessment expert. " +
+            "Respond with valid JSON only — no markdown, no extra text.",
+        },
+        {
+          role: "user",
+          content:
+            `Create a level-diagnostic quiz for a student who wants to learn: "${topic}".\n\n` +
+            `Rules:\n` +
+            `- Choose between 5 and 8 questions — pick the count that best gauges the topic's depth.\n` +
+            `- Questions must test PRIOR KNOWLEDGE the student already has (or doesn't), not the course itself.\n` +
+            `- Mix: ~35% easy (basic definitions), ~40% medium (applied understanding), ~25% hard (deeper concepts).\n` +
+            `- Each question must have exactly 4 options.\n` +
+            `- The answer field must be the FULL text of the correct option, not a letter.\n\n` +
+            `Return ONLY this JSON:\n` +
+            `{\n` +
+            `  "title": "How well do you know ${topic}?",\n` +
+            `  "description": "Quick level check — no pressure, just helps us tailor your course.",\n` +
+            `  "questions": [\n` +
+            `    {\n` +
+            `      "question": "question text",\n` +
+            `      "options": ["full option A", "full option B", "full option C", "full option D"],\n` +
+            `      "answer": "full option A",\n` +
+            `      "difficulty": "easy|medium|hard",\n` +
+            `      "topic": "specific sub-topic this tests"\n` +
+            `    }\n` +
+            `  ]\n` +
+            `}`,
+        },
+      ],
+    });
+
+    const quiz = parseJSON(response.choices[0].message.content);
+    return res.status(200).json({ success: true, data: quiz });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── POST /api/ai/pre-course-quiz/submit ─────────────────────────────────────
+export const submitPreCourseQuiz = async (req, res) => {
+  try {
+    const { topic, questions = [], userAnswers = [] } = req.body;
+    if (!topic || questions.length === 0) {
+      return res.status(400).json({ success: false, message: "topic and questions are required" });
+    }
+
+    // ── 1. Score ──────────────────────────────────────────────────────────────
+    const correct = questions.filter((q, i) => userAnswers[i] === q.answer).length;
+    const score   = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+
+    let level;
+    if (score >= 80)      level = "advanced";
+    else if (score >= 50) level = "intermediate";
+    else                  level = "beginner";
+
+    // ── 2. Generate course tailored to level ─────────────────────────────────
+    const courseResponse = await groq.chat.completions.create({
+      model: MODEL,
+      temperature: 0.5,
+      messages: [
+        {
+          role: "system",
+          content: "You are a curriculum designer. Respond with valid JSON only — no markdown, no extra text.",
+        },
+        {
+          role: "user",
+          content:
+            `Create a complete course on "${topic}" calibrated for a student at the "${level}" level.\n\n` +
+            `Level guidance:\n` +
+            (level === "beginner"
+              ? `- Start from scratch. Define all key terms. Use analogies. Build foundations slowly.\n`
+              : level === "intermediate"
+              ? `- Skip basics. Assume core concepts are known. Focus on applied understanding and common pitfalls.\n`
+              : `- Assume solid foundations. Go deep. Cover edge cases, nuances, and advanced applications.\n`) +
+            `\nGenerate exactly 5 chapters. Each chapter must have a quiz with exactly 4 questions.\n` +
+            `Each chapter must have detailed content (at least 4 solid paragraphs).\n\n` +
+            `Return ONLY this JSON structure:\n` +
+            `{\n` +
+            `  "title": "course title",\n` +
+            `  "subject": "subject area",\n` +
+            `  "description": "2-sentence course description mentioning the level",\n` +
+            `  "chapters": [\n` +
+            `    {\n` +
+            `      "title": "chapter title",\n` +
+            `      "content": "detailed chapter content — minimum 4 paragraphs",\n` +
+            `      "quiz": {\n` +
+            `        "title": "Quiz: chapter title",\n` +
+            `        "questions": [\n` +
+            `          {\n` +
+            `            "question": "question text",\n` +
+            `            "options": ["full option A", "full option B", "full option C", "full option D"],\n` +
+            `            "answer": "full option A",\n` +
+            `            "difficulty": "easy|medium|hard"\n` +
+            `          }\n` +
+            `        ]\n` +
+            `      }\n` +
+            `    }\n` +
+            `  ]\n` +
+            `}`,
+        },
+      ],
+    });
+
+    const course = parseJSON(courseResponse.choices[0].message.content);
+
+    // ── 3. Save to DB ─────────────────────────────────────────────────────────
+    const db = getAuthedSupabaseClient(req.accessToken);
+
+    const { data: savedCourse, error: courseError } = await db
+      .from("ai_courses")
+      .insert({
+        user_id:            req.user.id,
+        title:              course.title,
+        subject:            course.subject,
+        description:        course.description,
+        total_chapters:     course.chapters.length,
+        completed_chapters: 0,
+        course_level:       level,
+        entry_quiz_passed:  true,
+        entry_quiz_score:   score,
+      })
+      .select()
+      .single();
+
+    if (courseError) throw courseError;
+
+    const chaptersToInsert = course.chapters.map((ch, index) => ({
+      course_id:    savedCourse.id,
+      title:        ch.title,
+      content:      ch.content || "",
+      order_index:  index + 1,
+      is_completed: false,
+      difficulty:   level,
+    }));
+
+    const { data: createdChapters, error: chaptersError } = await db
+      .from("chapters")
+      .insert(chaptersToInsert)
+      .select();
+
+    if (chaptersError) throw chaptersError;
+
+    const quizzesToInsert = [];
+    course.chapters.forEach((ch, index) => {
+      if (ch.quiz && createdChapters[index]) {
+        quizzesToInsert.push({
+          course_id:  savedCourse.id,
+          chapter_id: createdChapters[index].id,
+          title:      ch.quiz.title || `Quiz: ${ch.title}`,
+          questions:  ch.quiz.questions || [],
+          passed:     false,
+          attempts:   0,
+        });
+      }
+    });
+
+    if (quizzesToInsert.length > 0) {
+      await db.from("quizzes").insert(quizzesToInsert);
+    }
+
+    // ── 4. Log activity + award XP ────────────────────────────────────────────
+    await supabase.from("activity_logs").insert({
+      user_id:     req.user.id,
+      type:        "course_created",
+      description: `Created course via quiz: ${course.title} (${level} level, ${score}%)`,
+    });
+
+    const { data: userData } = await supabase
+      .from("users").select("xp, level").eq("id", req.user.id).single();
+    if (userData) {
+      const newXP    = (userData.xp || 0) + 20;
+      const newLevel = Math.floor(newXP / 1000) + 1;
+      await supabase.from("users").update({ xp: newXP, level: newLevel }).eq("id", req.user.id);
+    }
+
+    // ── 5. Return ─────────────────────────────────────────────────────────────
+    return res.status(201).json({
+      success: true,
+      data: {
+        courseId:    savedCourse.id,
+        courseTitle: course.title,
+        level,
+        score,
+        message:
+          score >= 80
+            ? `Impressive! You scored ${score}%. Your course is calibrated at advanced level.`
+            : score >= 50
+            ? `Good foundation! Score: ${score}%. Course set to intermediate level.`
+            : `Score: ${score}%. We'll build your course from the ground up — beginner level.`,
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
