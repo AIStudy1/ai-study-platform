@@ -11,13 +11,11 @@ import {
   apiGenerateEntryQuiz, apiSubmitEntryQuiz,
 } from "@/services/api";
 import FileQuizModal from "@/components/FileQuizModal";
-import { PomodoroFloatingPill, PomodoroHeaderButton } from "@/components/PomodoroTimer";
+import { PomodoroFloatingPill } from "@/components/PomodoroTimer";
 import { usePomodoro } from "@/context/PomodoroContext";
 
 const PRIMARY = "#9cd21f";
-const PASSING_GRADE = 80;
 
-// ─── Difficulty helpers ───────────────────────────────────────────────────────
 const DIFFICULTY_META = {
   beginner:     { color: "#22c55e", bg: "#f0fdf4", label: "Beginner",     icon: "🟢" },
   intermediate: { color: "#f97316", bg: "#fff7ed", label: "Intermediate", icon: "🟡" },
@@ -25,7 +23,12 @@ const DIFFICULTY_META = {
 } as const;
 type Difficulty = keyof typeof DIFFICULTY_META;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+function getPassingGrade(difficulty: string): number {
+  if (difficulty === "advanced")     return 80;
+  if (difficulty === "intermediate") return 70;
+  return 60;
+}
+
 interface Question {
   question: string; options: string[]; answer: string;
   difficulty?: string; topic?: string; isBonus?: boolean;
@@ -34,12 +37,14 @@ interface Quiz {
   id: string; title: string; questions: Question[];
   score: number | null; passed: boolean; attempts: number;
   bonus_questions?: Question[];
+  passing_grade?: number;
 }
 interface Chapter {
   id: string; title: string; content: string; duration: string;
   is_completed: boolean; order_index: number;
   has_quiz: boolean; quiz: Quiz | null; is_assignment?: boolean;
   difficulty: Difficulty; difficulty_adjusted: boolean;
+  content_adjusted?: boolean;
 }
 interface Course {
   id: string; title: string; subject: string; description: string;
@@ -62,54 +67,36 @@ interface AIReport {
   summary: string; strengths: string[]; improvements: string[];
   recommendation: string; passed: boolean;
 }
-
 type TabType = "chapters" | "quizzes" | "progress";
 
-// ─── XP bar component ─────────────────────────────────────────────────────────
 function XPBar({ xp, level }: { xp: number; level: number }) {
   const xpInLevel = xp % 1000;
   const pct = (xpInLevel / 1000) * 100;
   return (
     <View style={xpStyles.row}>
-      <View style={xpStyles.levelBadge}>
-        <Text style={xpStyles.levelText}>Lv {level}</Text>
-      </View>
+      <View style={xpStyles.levelBadge}><Text style={xpStyles.levelText}>Lv {level}</Text></View>
       <View style={{ flex: 1 }}>
-        <View style={xpStyles.barBg}>
-          <View style={[xpStyles.barFill, { width: `${pct}%` }]} />
-        </View>
+        <View style={xpStyles.barBg}><View style={[xpStyles.barFill, { width: `${pct}%` }]} /></View>
         <Text style={xpStyles.xpText}>{xpInLevel} / 1000 XP</Text>
       </View>
     </View>
   );
 }
 const xpStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  row:        { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
   levelBadge: { backgroundColor: PRIMARY, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  levelText: { color: "white", fontWeight: "bold", fontSize: 12 },
-  barBg: { height: 8, backgroundColor: "#e5e7eb", borderRadius: 10 },
-  barFill: { height: 8, backgroundColor: PRIMARY, borderRadius: 10 },
-  xpText: { fontSize: 10, color: "#999", marginTop: 3 },
+  levelText:  { color: "white", fontWeight: "bold", fontSize: 12 },
+  barBg:      { height: 8, backgroundColor: "#e5e7eb", borderRadius: 10 },
+  barFill:    { height: 8, backgroundColor: PRIMARY, borderRadius: 10 },
+  xpText:     { fontSize: 10, color: "#999", marginTop: 3 },
 });
 
-// ─── Animated option button ───────────────────────────────────────────────────
-function OptionButton({
-  option, index, onPress, state,
-}: {
-  option: string; index: number;
-  onPress: () => void;
-  state: "idle" | "correct" | "wrong";
+function OptionButton({ option, index, onPress, state }: {
+  option: string; index: number; onPress: () => void; state: "idle" | "correct" | "wrong";
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const bgColor =
-    state === "correct" ? "#22c55e" :
-    state === "wrong"   ? "#ef4444" :
-    "white";
-  const borderColor =
-    state === "correct" ? "#22c55e" :
-    state === "wrong"   ? "#ef4444" :
-    "#e5e7eb";
-
+  const scale      = useRef(new Animated.Value(1)).current;
+  const bgColor    = state === "correct" ? "#22c55e" : state === "wrong" ? "#ef4444" : "white";
+  const borderColor = state === "correct" ? "#22c55e" : state === "wrong" ? "#ef4444" : "#e5e7eb";
   const handlePress = () => {
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
@@ -117,21 +104,12 @@ function OptionButton({
     ]).start();
     onPress();
   };
-
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]}
-        onPress={handlePress}
-        disabled={state !== "idle"}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.optionLetter, {
-          backgroundColor: state !== "idle" ? "rgba(255,255,255,0.25)" : "#f3f4f6",
-        }]}>
-          <Text style={[styles.optionLetterText, state !== "idle" && { color: "white" }]}>
-            {["A","B","C","D"][index]}
-          </Text>
+      <TouchableOpacity style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]}
+        onPress={handlePress} disabled={state !== "idle"} activeOpacity={0.8}>
+        <View style={[styles.optionLetter, { backgroundColor: state !== "idle" ? "rgba(255,255,255,0.25)" : "#f3f4f6" }]}>
+          <Text style={[styles.optionLetterText, state !== "idle" && { color: "white" }]}>{["A","B","C","D"][index]}</Text>
         </View>
         <Text style={[styles.optionText, state !== "idle" && { color: "white" }]}>{option}</Text>
         {state === "correct" && <Ionicons name="checkmark-circle" size={20} color="white" />}
@@ -141,85 +119,73 @@ function OptionButton({
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function CourseDetail() {
   const router = useRouter();
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
-  const [activeTab, setActiveTab] = useState<TabType>("chapters");
-  const [course, setCourse] = useState<Course | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [activeTab,      setActiveTab]      = useState<TabType>("chapters");
+  const [course,         setCourse]         = useState<Course | null>(null);
+  const [loading,        setLoading]        = useState(true);
   const [loadingChapter, setLoadingChapter] = useState<string | null>(null);
   const [quizModalVisible, setQuizModalVisible] = useState(false);
+  const [chapterModal,     setChapterModal]     = useState<Chapter | null>(null);
 
-  // Chapter reader
-  const [chapterModal, setChapterModal] = useState<Chapter | null>(null);
-
-  // ── Entry quiz state ───────────────────────────────────────────────────────
-  const [entryQuizVisible, setEntryQuizVisible] = useState(false);
-  const [entryQuizData, setEntryQuizData] = useState<any | null>(null);
-  const [entryQuizLoading, setEntryQuizLoading] = useState(false);
-  const [entryQuizAnswers, setEntryQuizAnswers] = useState<string[]>([]);
-  const [entryQuizIndex, setEntryQuizIndex] = useState(0);
+  const [entryQuizVisible,    setEntryQuizVisible]    = useState(false);
+  const [entryQuizData,       setEntryQuizData]       = useState<any | null>(null);
+  const [entryQuizLoading,    setEntryQuizLoading]    = useState(false);
+  const [entryQuizAnswers,    setEntryQuizAnswers]    = useState<string[]>([]);
+  const [entryQuizIndex,      setEntryQuizIndex]      = useState(0);
   const [entryQuizSubmitting, setEntryQuizSubmitting] = useState(false);
-  const [entryQuizResult, setEntryQuizResult] = useState<EntryQuizResult | null>(null);
-  const [entryOptionState, setEntryOptionState] = useState<"idle"|"correct"|"wrong">("idle");
-  const [lastEntryAnswer, setLastEntryAnswer] = useState<string | null>(null);
+  const [entryQuizResult,     setEntryQuizResult]     = useState<EntryQuizResult | null>(null);
+  const [entryOptionState,    setEntryOptionState]    = useState<"idle"|"correct"|"wrong">("idle");
+  const [lastEntryAnswer,     setLastEntryAnswer]     = useState<string | null>(null);
 
-  // ── Chapter quiz state ─────────────────────────────────────────────────────
-  const [activeQuiz, setActiveQuiz] = useState<{ chapter: Chapter; quiz: Quiz; allQuestions: Question[] } | null>(null);
-  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
-  const [quizIndex, setQuizIndex] = useState(0);
+  const [activeQuiz,     setActiveQuiz]     = useState<{ chapter: Chapter; quiz: Quiz; allQuestions: Question[] } | null>(null);
+  const [quizAnswers,    setQuizAnswers]    = useState<Record<number, string>>({});
+  const [quizIndex,      setQuizIndex]      = useState(0);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
-  const [optionStates, setOptionStates] = useState<Record<number, "idle"|"correct"|"wrong">>({});
+  const [optionStates,   setOptionStates]   = useState<Record<number, "idle"|"correct"|"wrong">>({});
+  const [selectedOption, setSelectedOption] = useState<Record<number, string>>({});
 
-  // Report modal
-  const [report, setReport] = useState<{ score: number; report: AIReport; chapterTitle: string; attempts: number } | null>(null);
-
-  const [addingCourse, setAddingCourse] = useState(false);
-
-  const genId = () => Math.random().toString(36).substr(2, 9);
-
-  useEffect(() => { if (courseId) fetchCourse(); }, [courseId]);
+  const [report, setReport] = useState<{
+    score: number; report: AIReport; chapterTitle: string;
+    attempts: number; passingGrade: number;
+    contentRewritten: boolean; newQuestionsReady: boolean;
+  } | null>(null);
 
   const { settings: pomodoroSettings, start: pomodoroStart, state: pomodoroState } = usePomodoro();
+  useEffect(() => { if (courseId) fetchCourse(); }, [courseId]);
 
   const fetchCourse = async () => {
     try {
       setLoading(true);
-      const res = await apiGetCourse(courseId!);
+      const res  = await apiGetCourse(courseId!);
       const data = res.data;
       const chapters: Chapter[] = (data.chapters || []).map((c: any) => ({
-        id: c.id,
-        title: c.title,
-        content: c.content || "",
+        id: c.id, title: c.title, content: c.content || "",
         duration: c.duration || "30 min",
         is_completed: c.is_completed || false,
         order_index: c.order_index,
         has_quiz: c.quizzes && c.quizzes.length > 0,
-        quiz: c.quizzes?.[0]
-          ? {
-              id: c.quizzes[0].id,
-              title: c.quizzes[0].title,
-              questions: c.quizzes[0].questions || [],
-              bonus_questions: c.quizzes[0].bonus_questions || [],
-              score: c.quizzes[0].score ?? null,
-              passed: c.quizzes[0].passed || false,
-              attempts: c.quizzes[0].attempts || 0,
-            }
-          : null,
+        quiz: c.quizzes?.[0] ? {
+          id: c.quizzes[0].id, title: c.quizzes[0].title,
+          questions: c.quizzes[0].questions || [],
+          bonus_questions: c.quizzes[0].bonus_questions || [],
+          score: c.quizzes[0].score ?? null,
+          passed: c.quizzes[0].passed || false,
+          attempts: c.quizzes[0].attempts || 0,
+          passing_grade: c.quizzes[0].passing_grade ?? null,
+        } : null,
         is_assignment: c.is_assignment || false,
         difficulty: (c.difficulty as Difficulty) || "beginner",
         difficulty_adjusted: c.difficulty_adjusted || false,
+        content_adjusted: c.content_adjusted || false,
       }));
       setCourse({
-        id: data.id,
-        title: data.title,
-        subject: data.subject,
+        id: data.id, title: data.title, subject: data.subject,
         description: data.description,
         total_chapters: data.total_chapters,
         completed_chapters: data.completed_chapters,
-        type: data.type || "ai",
-        chapters,
+        type: data.type || "ai", chapters,
         entry_quiz: data.entry_quiz || null,
         entry_quiz_passed: data.entry_quiz_passed ?? null,
         entry_quiz_score: data.entry_quiz_score ?? null,
@@ -229,22 +195,15 @@ export default function CourseDetail() {
     } catch {
       Alert.alert("Error", "Could not load course.");
       router.replace("/(tabs)/dashboard" as any);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
-
-  // ── Entry quiz (retake only) ───────────────────────────────────────────────
 
   const handleStartEntryQuiz = async () => {
     if (!course) return;
     if (course.entry_quiz) {
-      setEntryQuizData(course.entry_quiz);
-      setEntryQuizIndex(0);
-      setEntryQuizAnswers([]);
-      setEntryQuizResult(null);
-      setEntryOptionState("idle");
-      setEntryQuizVisible(true);
+      setEntryQuizData(course.entry_quiz); setEntryQuizIndex(0);
+      setEntryQuizAnswers([]); setEntryQuizResult(null);
+      setEntryOptionState("idle"); setEntryQuizVisible(true);
       return;
     }
     setEntryQuizLoading(true);
@@ -252,38 +211,23 @@ export default function CourseDetail() {
       const res = await apiGenerateEntryQuiz(course.id);
       setEntryQuizData(res.data);
       setCourse((prev) => prev ? { ...prev, entry_quiz: res.data } : prev);
-      setEntryQuizIndex(0);
-      setEntryQuizAnswers([]);
-      setEntryQuizResult(null);
-      setEntryOptionState("idle");
-      setEntryQuizVisible(true);
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setEntryQuizLoading(false);
-    }
+      setEntryQuizIndex(0); setEntryQuizAnswers([]); setEntryQuizResult(null);
+      setEntryOptionState("idle"); setEntryQuizVisible(true);
+    } catch (e: any) { Alert.alert("Error", e.message); }
+    finally { setEntryQuizLoading(false); }
   };
 
   const handleEntryAnswer = (option: string) => {
     if (!entryQuizData) return;
     const questions: Question[] = entryQuizData.questions;
-    const currentQ = questions[entryQuizIndex];
-    const isCorrect = option === currentQ.answer;
-
+    const isCorrect = option === questions[entryQuizIndex].answer;
     setEntryOptionState(isCorrect ? "correct" : "wrong");
     setLastEntryAnswer(option);
-
     setTimeout(() => {
       const newAnswers = [...entryQuizAnswers, option];
-      setEntryQuizAnswers(newAnswers);
-      setEntryOptionState("idle");
-      setLastEntryAnswer(null);
-
-      if (entryQuizIndex < questions.length - 1) {
-        setEntryQuizIndex((i) => i + 1);
-      } else {
-        finishEntryQuiz(newAnswers);
-      }
+      setEntryQuizAnswers(newAnswers); setEntryOptionState("idle"); setLastEntryAnswer(null);
+      if (entryQuizIndex < questions.length - 1) setEntryQuizIndex((i) => i + 1);
+      else finishEntryQuiz(newAnswers);
     }, 700);
   };
 
@@ -292,115 +236,86 @@ export default function CourseDetail() {
     setEntryQuizSubmitting(true);
     try {
       const res = await apiSubmitEntryQuiz(course.id, answers);
-      setEntryQuizResult(res.data);
-      await fetchCourse();
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setEntryQuizSubmitting(false);
-    }
+      setEntryQuizResult(res.data); await fetchCourse();
+    } catch (e: any) { Alert.alert("Error", e.message); }
+    finally { setEntryQuizSubmitting(false); }
   };
 
   const closeEntryQuiz = () => {
-    setEntryQuizVisible(false);
-    setEntryQuizData(null);
-    setEntryQuizResult(null);
-    setEntryQuizIndex(0);
-    setEntryQuizAnswers([]);
-    setLastEntryAnswer(null);
+    setEntryQuizVisible(false); setEntryQuizData(null); setEntryQuizResult(null);
+    setEntryQuizIndex(0); setEntryQuizAnswers([]); setLastEntryAnswer(null);
   };
 
-  // ── Chapter quiz ───────────────────────────────────────────────────────────
-
   const openQuiz = (chapter: Chapter) => {
-    if (!chapter.is_completed) {
-      Alert.alert("Locked 🔒", "Complete the chapter first to unlock the quiz.");
-      return;
-    }
+    if (!chapter.is_completed) { Alert.alert("Locked 🔒", "Complete the chapter first to unlock the quiz."); return; }
     if (!chapter.quiz) return;
-
     if (course) {
       const sorted = [...course.chapters].sort((a, b) => a.order_index - b.order_index);
-      const idx = sorted.findIndex((c) => c.id === chapter.id);
+      const idx    = sorted.findIndex((c) => c.id === chapter.id);
       if (idx > 0) {
         const prev = sorted[idx - 1];
         if (prev.has_quiz && prev.quiz && !prev.quiz.passed) {
-          Alert.alert(
-            "Previous quiz required 🔒",
-            `You need to pass the quiz for "${prev.title}" first (${prev.quiz.score !== null ? `your score: ${prev.quiz.score}%` : "not attempted yet"}).`
-          );
+          Alert.alert("Previous quiz required 🔒",
+            `Pass the quiz for "${prev.title}" first (${prev.quiz.score !== null ? `score: ${prev.quiz.score}%` : "not attempted yet"}).`);
           return;
         }
       }
     }
-
-    const base = chapter.quiz.questions || [];
-    const bonus = chapter.quiz.bonus_questions || [];
-    const allQuestions = [...base, ...bonus];
-    if (allQuestions.length === 0) {
-      Alert.alert("No questions", "This quiz has no questions yet.");
-      return;
-    }
+    const allQuestions = [...(chapter.quiz.questions || []), ...(chapter.quiz.bonus_questions || [])];
+    if (allQuestions.length === 0) { Alert.alert("No questions", "This quiz has no questions yet."); return; }
+    setQuizAnswers({}); setQuizIndex(0); setOptionStates({}); setSelectedOption({});
     setActiveQuiz({ chapter, quiz: chapter.quiz, allQuestions });
-    setQuizAnswers({});
-    setQuizIndex(0);
-    setOptionStates({});
   };
 
   const handleQuizAnswer = (option: string) => {
     if (!activeQuiz) return;
-    const currentQ = activeQuiz.allQuestions[quizIndex];
-    const isCorrect = option === currentQ.answer;
-
-    setOptionStates((prev) => ({
-      ...prev,
-      [quizIndex]: isCorrect ? "correct" : "wrong",
-    }));
-
+    const isCorrect = option === activeQuiz.allQuestions[quizIndex].answer;
+    setSelectedOption((prev) => ({ ...prev, [quizIndex]: option }));
+    setOptionStates((prev) => ({ ...prev, [quizIndex]: isCorrect ? "correct" : "wrong" }));
     setTimeout(() => {
       const newAnswers = { ...quizAnswers, [quizIndex]: option };
       setQuizAnswers(newAnswers);
-
-      if (quizIndex < activeQuiz.allQuestions.length - 1) {
-        setQuizIndex((i) => i + 1);
-      } else {
-        finishQuiz(newAnswers);
-      }
+      if (quizIndex < activeQuiz.allQuestions.length - 1) setQuizIndex((i) => i + 1);
+      else finishQuiz(newAnswers);
     }, 700);
   };
 
   const finishQuiz = async (answers: Record<number, string>) => {
     if (!activeQuiz || !course) return;
     const { chapter, quiz, allQuestions } = activeQuiz;
-    const correct = allQuestions.filter((q, i) => answers[i] === q.answer).length;
-    const score = Math.round((correct / allQuestions.length) * 100);
+    const correct     = allQuestions.filter((q, i) => answers[i] === q.answer).length;
+    const score       = Math.round((correct / allQuestions.length) * 100);
     const userAnswers = allQuestions.map((_, i) => answers[i] || "");
+    const passingGrade = quiz.passing_grade ?? getPassingGrade(chapter.difficulty);
+    const passed       = score >= passingGrade;
 
     setQuizSubmitting(true);
     try {
-      const res = await apiSubmitQuiz(
-        course.id, quiz.id, score, chapter.title, allQuestions, userAnswers
-      );
-      const passed = score >= PASSING_GRADE;
+      const res = await apiSubmitQuiz(course.id, quiz.id, score, chapter.title, allQuestions, userAnswers);
 
-      setCourse((prev) => prev
-        ? {
-            ...prev,
-            chapters: prev.chapters.map((c) =>
-              c.id === chapter.id
-                ? { ...c, quiz: c.quiz ? { ...c.quiz, score, passed, attempts: res.data.attempts } : null }
-                : c
-            ),
-          }
-        : prev);
+      setCourse((prev) => prev ? {
+        ...prev,
+        chapters: prev.chapters.map((c) => c.id === chapter.id
+          ? { ...c, quiz: c.quiz ? { ...c.quiz, score, passed, attempts: res.data.attempts } : null }
+          : c),
+      } : prev);
 
-      setActiveQuiz(null);
-      setReport({ score, report: res.data.report, chapterTitle: chapter.title, attempts: res.data.attempts });
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setQuizSubmitting(false);
-    }
+      setActiveQuiz(null); setSelectedOption({}); setOptionStates({});
+      setQuizAnswers({}); setQuizIndex(0);
+
+      setReport({
+        score,
+        report:           res.data.report,
+        chapterTitle:     chapter.title,
+        attempts:         res.data.attempts,
+        passingGrade:     res.data.passingGrade ?? passingGrade,
+        contentRewritten: res.data.contentRewritten ?? false,
+        newQuestionsReady:res.data.newQuestionsReady ?? false,
+      });
+
+      if (res.data.contentRewritten) await fetchCourse();
+    } catch (e: any) { Alert.alert("Error", e.message); }
+    finally { setQuizSubmitting(false); }
   };
 
   const handleCompleteChapter = async (chapter: Chapter) => {
@@ -409,45 +324,33 @@ export default function CourseDetail() {
       setLoadingChapter(chapter.id);
       await apiCompleteChapter(course.id, chapter.id);
       await apiLogActivity("chapter_completed", `Completed: ${chapter.title}`);
-      setCourse((prev) => prev
-        ? {
-            ...prev,
-            completed_chapters: prev.completed_chapters + 1,
-            chapters: prev.chapters.map((c) =>
-              c.id === chapter.id ? { ...c, is_completed: true } : c
-            ),
-          }
-        : prev);
+      setCourse((prev) => prev ? {
+        ...prev,
+        completed_chapters: prev.completed_chapters + 1,
+        chapters: prev.chapters.map((c) => c.id === chapter.id ? { ...c, is_completed: true } : c),
+      } : prev);
       setChapterModal((prev) => prev ? { ...prev, is_completed: true } : prev);
       Alert.alert("Chapter Complete! 🎉", chapter.has_quiz ? "Quiz is now unlocked!" : "Great job!");
-    } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setLoadingChapter(null);
-    }
+    } catch (e: any) { Alert.alert("Error", e.message); }
+    finally { setLoadingChapter(null); }
   };
 
   if (loading) return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Loading course...</Text>
-      </View>
+      <View style={styles.centered}><ActivityIndicator size="large" color={PRIMARY} /><Text style={styles.loadingText}>Loading course...</Text></View>
     </SafeAreaView>
   );
   if (!course) return null;
 
   const completedChapters = course.chapters.filter((c) => c.is_completed).length;
-  const progressPercent = course.chapters.length > 0
-    ? Math.round((completedChapters / course.chapters.length) * 100) : 0;
-  const passedQuizzes = course.chapters.filter((c) => c.has_quiz && c.quiz?.passed).length;
-  const totalQuizzes  = course.chapters.filter((c) => c.has_quiz).length;
-  const scoredChapters = course.chapters.filter((c) => (c.quiz?.score ?? 0) > 0);
-  const avgScore = scoredChapters.length > 0
+  const progressPercent   = course.chapters.length > 0 ? Math.round((completedChapters / course.chapters.length) * 100) : 0;
+  const passedQuizzes     = course.chapters.filter((c) => c.has_quiz && c.quiz?.passed).length;
+  const totalQuizzes      = course.chapters.filter((c) => c.has_quiz).length;
+  const scoredChapters    = course.chapters.filter((c) => (c.quiz?.score ?? 0) > 0);
+  const avgScore          = scoredChapters.length > 0
     ? Math.round(scoredChapters.reduce((acc, c) => acc + (c.quiz?.score ?? 0), 0) / scoredChapters.length) : 0;
-
-  const entryQuizTaken = course.entry_quiz_passed !== null;
-  const diffMeta = DIFFICULTY_META[course.course_level as Difficulty] || DIFFICULTY_META.beginner;
+  const entryQuizTaken    = course.entry_quiz_passed !== null;
+  const diffMeta          = DIFFICULTY_META[course.course_level as Difficulty] || DIFFICULTY_META.beginner;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
@@ -474,9 +377,7 @@ export default function CourseDetail() {
             </View>
             {course.course_level && (
               <View style={[styles.typeBadge, { backgroundColor: diffMeta.bg }]}>
-                <Text style={[styles.typeBadgeText, { color: diffMeta.color }]}>
-                  {diffMeta.icon} {diffMeta.label}
-                </Text>
+                <Text style={[styles.typeBadgeText, { color: diffMeta.color }]}>{diffMeta.icon} {diffMeta.label}</Text>
               </View>
             )}
           </View>
@@ -486,7 +387,6 @@ export default function CourseDetail() {
           <XPBar xp={course.course_xp || 0} level={Math.floor((course.course_xp || 0) / 1000) + 1} />
         </View>
 
-        {/* ── Level badge — only shown after assessment, with Retake option ── */}
         {entryQuizTaken && (
           <View style={[styles.entryQuizBanner, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
             <View style={styles.entryQuizBannerLeft}>
@@ -513,9 +413,7 @@ export default function CourseDetail() {
             <Text style={styles.progressTitle}>Overall Progress</Text>
             <Text style={styles.progressPercent}>{progressPercent}%</Text>
           </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-          </View>
+          <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} /></View>
           <View style={styles.progressStats}>
             <View style={styles.progressStat}>
               <MaterialIcons name="menu-book" size={18} color={PRIMARY} />
@@ -541,11 +439,7 @@ export default function CourseDetail() {
 
         <View style={styles.tabs}>
           {(["chapters", "quizzes", "progress"] as TabType[]).map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
-            >
+            <TouchableOpacity key={tab} style={[styles.tab, activeTab === tab && styles.tabActive]} onPress={() => setActiveTab(tab)}>
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </Text>
@@ -566,9 +460,7 @@ export default function CourseDetail() {
                     style={[styles.chapterCard, chapter.is_completed && styles.chapterCardDone]}
                     onPress={() => {
                       setChapterModal(chapter);
-                      if (pomodoroSettings.enabled && !pomodoroState.isRunning && pomodoroState.phase === "work") {
-                        pomodoroStart();
-                      }
+                      if (pomodoroSettings.enabled && !pomodoroState.isRunning && pomodoroState.phase === "work") pomodoroStart();
                     }}
                   >
                     <View style={[styles.stepCircle, { backgroundColor: chapter.is_completed ? PRIMARY : "#e5e7eb" }]}>
@@ -580,14 +472,15 @@ export default function CourseDetail() {
                     </View>
                     <View style={styles.chapterInfo}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <Text style={[styles.chapterTitle, !chapter.is_completed && styles.chapterTitleLocked]}>
-                          {chapter.title}
-                        </Text>
+                        <Text style={[styles.chapterTitle, !chapter.is_completed && styles.chapterTitleLocked]}>{chapter.title}</Text>
                         {chapter.difficulty_adjusted && (
                           <View style={[styles.adaptedBadge, { backgroundColor: dm.bg }]}>
-                            <Text style={[styles.adaptedBadgeText, { color: dm.color }]}>
-                              {dm.icon} {dm.label}
-                            </Text>
+                            <Text style={[styles.adaptedBadgeText, { color: dm.color }]}>{dm.icon} {dm.label}</Text>
+                          </View>
+                        )}
+                        {chapter.content_adjusted && (
+                          <View style={[styles.adaptedBadge, { backgroundColor: "#eff6ff" }]}>
+                            <Text style={[styles.adaptedBadgeText, { color: "#3b82f6" }]}>📖 Updated</Text>
                           </View>
                         )}
                       </View>
@@ -598,8 +491,7 @@ export default function CourseDetail() {
                           <View style={[styles.assignmentBadge, { backgroundColor: "#8b5cf620" }]}>
                             <Text style={[styles.assignmentBadgeText, { color: "#8b5cf6" }]}>
                               {chapter.quiz?.bonus_questions && chapter.quiz.bonus_questions.length > 0
-                                ? `Quiz +${chapter.quiz.bonus_questions.length} bonus`
-                                : "Quiz ready"}
+                                ? `Quiz +${chapter.quiz.bonus_questions.length} bonus` : "Quiz ready"}
                             </Text>
                           </View>
                         )}
@@ -621,28 +513,27 @@ export default function CourseDetail() {
           <View style={styles.section}>
             <View style={styles.passingGradeBanner}>
               <Ionicons name="ribbon-outline" size={16} color="#f97316" />
-              <Text style={styles.passingGradeText}>Passing grade: {PASSING_GRADE}%</Text>
+              <Text style={styles.passingGradeText}>
+                Pass grade: Beginner 60% · Intermediate 70% · Advanced 80%
+              </Text>
             </View>
             {course.chapters.filter((c) => c.has_quiz).map((chapter) => {
-              const bonusCount = chapter.quiz?.bonus_questions?.length || 0;
+              const bonusCount   = chapter.quiz?.bonus_questions?.length || 0;
+              const passingGrade = chapter.quiz?.passing_grade ?? getPassingGrade(chapter.difficulty);
+              const dm           = DIFFICULTY_META[chapter.difficulty] || DIFFICULTY_META.beginner;
               return (
-                <TouchableOpacity
-                  key={chapter.id}
-                  style={styles.quizCard}
-                  onPress={() => openQuiz(chapter)}
-                >
+                <TouchableOpacity key={chapter.id} style={styles.quizCard} onPress={() => openQuiz(chapter)}>
                   <View style={[styles.quizIconBox, {
-                    backgroundColor: chapter.quiz?.passed ? "#22c55e20"
-                      : chapter.quiz?.score !== null ? "#ef444420" : "#f3f4f6",
+                    backgroundColor: chapter.quiz?.passed ? "#22c55e20" : chapter.quiz?.score !== null ? "#ef444420" : "#f3f4f6",
                   }]}>
-                    <MaterialIcons
-                      name="quiz" size={24}
-                      color={chapter.quiz?.passed ? "#22c55e"
-                        : chapter.quiz?.score !== null ? "#ef4444" : "#ccc"}
-                    />
+                    <MaterialIcons name="quiz" size={24}
+                      color={chapter.quiz?.passed ? "#22c55e" : chapter.quiz?.score !== null ? "#ef4444" : "#ccc"} />
                   </View>
                   <View style={styles.quizInfo}>
                     <Text style={styles.quizTitle}>Quiz: {chapter.title}</Text>
+                    <Text style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>
+                      {dm.icon} {dm.label} · Pass: {passingGrade}%
+                    </Text>
                     {bonusCount > 0 && (
                       <View style={styles.bonusBadge}>
                         <Ionicons name="flash" size={10} color="#8b5cf6" />
@@ -665,9 +556,7 @@ export default function CourseDetail() {
                         </View>
                       : chapter.quiz?.score !== null
                         ? <View style={[styles.doneBadge, { backgroundColor: "#ef444420" }]}>
-                            <Text style={[styles.doneBadgeText, { color: "#ef4444" }]}>
-                              {chapter.quiz?.passed === false ? "Retry" : "Failed"}
-                            </Text>
+                            <Text style={[styles.doneBadgeText, { color: "#ef4444" }]}>Retry</Text>
                           </View>
                         : <Ionicons name="lock-closed" size={18} color="#ccc" />}
                   </View>
@@ -693,23 +582,16 @@ export default function CourseDetail() {
                 <Text style={styles.summaryLabel}>Avg Score</Text>
               </View>
             </View>
-
             {entryQuizTaken && (
               <View style={[styles.entryResultCard, { borderColor: course.entry_quiz_passed ? PRIMARY : "#f97316" }]}>
-                <Ionicons
-                  name={course.entry_quiz_passed ? "checkmark-circle" : "information-circle"}
-                  size={20}
-                  color={course.entry_quiz_passed ? PRIMARY : "#f97316"}
-                />
+                <Ionicons name={course.entry_quiz_passed ? "checkmark-circle" : "information-circle"} size={20}
+                  color={course.entry_quiz_passed ? PRIMARY : "#f97316"} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.entryResultTitle}>Level Assessment</Text>
-                  <Text style={styles.entryResultSub}>
-                    Score: {course.entry_quiz_score}% · Starting level: {diffMeta.label}
-                  </Text>
+                  <Text style={styles.entryResultSub}>Score: {course.entry_quiz_score}% · Starting level: {diffMeta.label}</Text>
                 </View>
               </View>
             )}
-
             <Text style={styles.breakdownTitle}>Chapter Breakdown</Text>
             {course.chapters.map((chapter) => {
               const dm = DIFFICULTY_META[chapter.difficulty] || DIFFICULTY_META.beginner;
@@ -723,6 +605,11 @@ export default function CourseDetail() {
                         <Text style={[styles.adaptedBadgeText, { color: dm.color }]}>{dm.icon}</Text>
                       </View>
                     )}
+                    {chapter.content_adjusted && (
+                      <View style={[styles.adaptedBadge, { backgroundColor: "#eff6ff" }]}>
+                        <Text style={[styles.adaptedBadgeText, { color: "#3b82f6" }]}>📖</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.breakdownRight}>
                     {chapter.is_completed
@@ -730,12 +617,10 @@ export default function CourseDetail() {
                       : <Ionicons name="ellipse-outline" size={20} color="#ccc" />}
                     {chapter.has_quiz && (
                       <View style={[styles.quizResultBadge, {
-                        backgroundColor: chapter.quiz?.passed ? "#22c55e20"
-                          : chapter.quiz?.score !== null ? "#ef444420" : "#f3f4f6",
+                        backgroundColor: chapter.quiz?.passed ? "#22c55e20" : chapter.quiz?.score !== null ? "#ef444420" : "#f3f4f6",
                       }]}>
                         <Text style={[styles.quizResultText, {
-                          color: chapter.quiz?.passed ? "#22c55e"
-                            : chapter.quiz?.score !== null ? "#ef4444" : "#999",
+                          color: chapter.quiz?.passed ? "#22c55e" : chapter.quiz?.score !== null ? "#ef4444" : "#999",
                         }]}>
                           {chapter.quiz?.score !== null ? `${chapter.quiz?.score}%` : "Quiz"}
                         </Text>
@@ -764,49 +649,38 @@ export default function CourseDetail() {
               {(() => {
                 const dm = DIFFICULTY_META[chapterModal.difficulty] || DIFFICULTY_META.beginner;
                 return (
-                  <View style={[styles.chapterDiffBadge, { backgroundColor: dm.bg }]}>
-                    <Text style={[styles.chapterDiffText, { color: dm.color }]}>
-                      {dm.icon} {dm.label} Level
-                      {chapterModal.difficulty_adjusted ? " · AI Adapted" : ""}
-                    </Text>
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    <View style={[styles.chapterDiffBadge, { backgroundColor: dm.bg }]}>
+                      <Text style={[styles.chapterDiffText, { color: dm.color }]}>
+                        {dm.icon} {dm.label} Level{chapterModal.difficulty_adjusted ? " · AI Adapted" : ""}
+                      </Text>
+                    </View>
+                    {chapterModal.content_adjusted && (
+                      <View style={[styles.chapterDiffBadge, { backgroundColor: "#eff6ff" }]}>
+                        <Text style={[styles.chapterDiffText, { color: "#3b82f6" }]}>📖 Content Updated by AI</Text>
+                      </View>
+                    )}
                   </View>
                 );
               })()}
               <Text style={styles.chapterContentTitle}>{chapterModal.title}</Text>
-              <Text style={styles.chapterContentBody}>
-                {chapterModal.content || "No content available for this chapter."}
-              </Text>
-
+              <Text style={styles.chapterContentBody}>{chapterModal.content || "No content available."}</Text>
               {!chapterModal.is_completed && (
-                <TouchableOpacity
-                  style={styles.completeBtn}
-                  onPress={() => handleCompleteChapter(chapterModal)}
-                  disabled={loadingChapter === chapterModal.id}
-                >
+                <TouchableOpacity style={styles.completeBtn} onPress={() => handleCompleteChapter(chapterModal)} disabled={loadingChapter === chapterModal.id}>
                   {loadingChapter === chapterModal.id
                     ? <ActivityIndicator color="white" />
-                    : <>
-                        <Ionicons name="checkmark-circle" size={20} color="white" />
-                        <Text style={styles.completeBtnText}>Mark as Complete</Text>
-                      </>}
+                    : <><Ionicons name="checkmark-circle" size={20} color="white" /><Text style={styles.completeBtnText}>Mark as Complete</Text></>}
                 </TouchableOpacity>
               )}
-
               {chapterModal.is_completed && chapterModal.has_quiz && (
-                <TouchableOpacity
-                  style={[styles.completeBtn, { backgroundColor: "#8b5cf6" }]}
-                  onPress={() => { setChapterModal(null); openQuiz(chapterModal); }}
-                >
+                <TouchableOpacity style={[styles.completeBtn, { backgroundColor: "#8b5cf6" }]}
+                  onPress={() => { setChapterModal(null); openQuiz(chapterModal); }}>
                   <Ionicons name="help-circle" size={20} color="white" />
                   <Text style={styles.completeBtnText}>
-                    Take Quiz
-                    {(chapterModal.quiz?.bonus_questions?.length || 0) > 0
-                      ? ` (+${chapterModal.quiz!.bonus_questions!.length} bonus)`
-                      : ""}
+                    Take Quiz{(chapterModal.quiz?.bonus_questions?.length || 0) > 0 ? ` (+${chapterModal.quiz!.bonus_questions!.length} bonus)` : ""}
                   </Text>
                 </TouchableOpacity>
               )}
-
               {chapterModal.is_completed && (
                 <View style={styles.completedBanner}>
                   <Ionicons name="checkmark-circle" size={20} color={PRIMARY} />
@@ -818,7 +692,7 @@ export default function CourseDetail() {
         )}
       </Modal>
 
-      {/* ══ Entry Quiz Modal (Retake) ════════════════════════════════════════ */}
+      {/* ══ Entry Quiz Modal ════════════════════════════════════════════════ */}
       <Modal visible={entryQuizVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
           {entryQuizResult ? (
@@ -831,52 +705,33 @@ export default function CourseDetail() {
                 </TouchableOpacity>
               </View>
               <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-                <View style={[styles.reportScoreCard, {
-                  borderColor: entryQuizResult.passed ? PRIMARY : "#f97316",
-                }]}>
-                  <Ionicons
-                    name={entryQuizResult.passed ? "trophy" : "school"}
-                    size={44}
-                    color={entryQuizResult.passed ? PRIMARY : "#f97316"}
-                  />
-                  <Text style={[styles.reportScore, {
-                    color: entryQuizResult.passed ? PRIMARY : "#f97316",
-                  }]}>{entryQuizResult.score}%</Text>
+                <View style={[styles.reportScoreCard, { borderColor: entryQuizResult.passed ? PRIMARY : "#f97316" }]}>
+                  <Ionicons name={entryQuizResult.passed ? "trophy" : "school"} size={44} color={entryQuizResult.passed ? PRIMARY : "#f97316"} />
+                  <Text style={[styles.reportScore, { color: entryQuizResult.passed ? PRIMARY : "#f97316" }]}>{entryQuizResult.score}%</Text>
                   <Text style={styles.reportStatus}>
                     Level: {DIFFICULTY_META[entryQuizResult.startingLevel as Difficulty]?.label || entryQuizResult.startingLevel}
                   </Text>
                   <Text style={styles.reportSummary}>{entryQuizResult.message}</Text>
                 </View>
-
                 {entryQuizResult.chaptersSkipped > 0 && (
                   <View style={[styles.reportSection, { backgroundColor: PRIMARY + "15", borderRadius: 14, padding: 14 }]}>
                     <Text style={styles.reportSectionTitle}>⚡ Chapters Unlocked</Text>
                     <Text style={{ fontSize: 14, color: "#444", lineHeight: 20 }}>
-                      {entryQuizResult.chaptersSkipped} beginner chapter{entryQuizResult.chaptersSkipped > 1 ? "s" : ""} marked complete based on your score.
+                      {entryQuizResult.chaptersSkipped} beginner chapter{entryQuizResult.chaptersSkipped > 1 ? "s" : ""} marked complete.
                     </Text>
                   </View>
                 )}
-
                 <Text style={[styles.reportSectionTitle, { marginBottom: 10 }]}>📋 Question Review</Text>
                 {entryQuizResult.feedback.map((f, i) => (
-                  <View key={i} style={[styles.feedbackCard, {
-                    borderLeftColor: f.isCorrect ? "#22c55e" : "#ef4444",
-                  }]}>
+                  <View key={i} style={[styles.feedbackCard, { borderLeftColor: f.isCorrect ? "#22c55e" : "#ef4444" }]}>
                     <View style={styles.feedbackHeader}>
-                      <Ionicons
-                        name={f.isCorrect ? "checkmark-circle" : "close-circle"}
-                        size={16}
-                        color={f.isCorrect ? "#22c55e" : "#ef4444"}
-                      />
+                      <Ionicons name={f.isCorrect ? "checkmark-circle" : "close-circle"} size={16} color={f.isCorrect ? "#22c55e" : "#ef4444"} />
                       <Text style={styles.feedbackQ} numberOfLines={2}>{f.question}</Text>
                     </View>
-                    {!f.isCorrect && (
-                      <Text style={styles.feedbackCorrect}>Correct: {f.correct}</Text>
-                    )}
+                    {!f.isCorrect && <Text style={styles.feedbackCorrect}>Correct: {f.correct}</Text>}
                     {f.topic ? <Text style={styles.feedbackTopic}>Topic: {f.topic}</Text> : null}
                   </View>
                 ))}
-
                 <TouchableOpacity style={styles.completeBtn} onPress={closeEntryQuiz}>
                   <Ionicons name="arrow-forward" size={20} color="white" />
                   <Text style={styles.completeBtnText}>Back to Course</Text>
@@ -893,54 +748,28 @@ export default function CourseDetail() {
                 <View style={{ width: 36 }} />
               </View>
               <View style={styles.progressBg}>
-                <View style={[styles.progressFill, {
-                  width: `${((entryQuizIndex) / (entryQuizData.questions?.length || 1)) * 100}%`,
-                }]} />
+                <View style={[styles.progressFill, { width: `${(entryQuizIndex / (entryQuizData.questions?.length || 1)) * 100}%` }]} />
               </View>
               <ScrollView contentContainerStyle={{ padding: 20 }}>
                 <View style={styles.quizMeta}>
-                  <Text style={styles.quizMetaText}>
-                    {entryQuizIndex + 1} / {entryQuizData.questions?.length}
-                  </Text>
+                  <Text style={styles.quizMetaText}>{entryQuizIndex + 1} / {entryQuizData.questions?.length}</Text>
                   <View style={[styles.passingBadge, { backgroundColor: "#eff6ff" }]}>
                     <Text style={[styles.passingBadgeText, { color: "#3b82f6" }]}>Level Check</Text>
                   </View>
                 </View>
-
                 {entryQuizData.questions?.[entryQuizIndex]?.topic && (
-                  <Text style={styles.questionTopic}>
-                    📌 {entryQuizData.questions[entryQuizIndex].topic}
-                  </Text>
+                  <Text style={styles.questionTopic}>📌 {entryQuizData.questions[entryQuizIndex].topic}</Text>
                 )}
-                <Text style={styles.questionText}>
-                  {entryQuizData.questions?.[entryQuizIndex]?.question}
-                </Text>
-
+                <Text style={styles.questionText}>{entryQuizData.questions?.[entryQuizIndex]?.question}</Text>
                 {entryQuizSubmitting ? (
-                  <View style={styles.centered}>
-                    <ActivityIndicator size="large" color={PRIMARY} />
-                    <Text style={{ marginTop: 12, color: "#666" }}>Analysing your level...</Text>
-                  </View>
+                  <View style={styles.centered}><ActivityIndicator size="large" color={PRIMARY} /><Text style={{ marginTop: 12, color: "#666" }}>Analysing your level...</Text></View>
                 ) : (
                   <View style={styles.options}>
                     {entryQuizData.questions?.[entryQuizIndex]?.options?.map((opt: string, i: number) => {
                       const correct = entryQuizData.questions[entryQuizIndex].answer;
                       return (
-                        <OptionButton
-                          key={i}
-                          option={opt}
-                          index={i}
-                          onPress={() => handleEntryAnswer(opt)}
-                          state={
-                            entryOptionState === "idle"
-                              ? "idle"
-                              : opt === correct
-                              ? "correct"
-                              : opt === lastEntryAnswer
-                              ? "wrong"
-                              : "idle"
-                          }
-                        />
+                        <OptionButton key={i} option={opt} index={i} onPress={() => handleEntryAnswer(opt)}
+                          state={entryOptionState === "idle" ? "idle" : opt === correct ? "correct" : opt === lastEntryAnswer ? "wrong" : "idle"} />
                       );
                     })}
                   </View>
@@ -948,10 +777,7 @@ export default function CourseDetail() {
               </ScrollView>
             </>
           ) : (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={PRIMARY} />
-              <Text style={{ marginTop: 12, color: "#666" }}>Generating quiz...</Text>
-            </View>
+            <View style={styles.centered}><ActivityIndicator size="large" color={PRIMARY} /><Text style={{ marginTop: 12, color: "#666" }}>Generating quiz...</Text></View>
           )}
         </SafeAreaView>
       </Modal>
@@ -968,9 +794,7 @@ export default function CourseDetail() {
               <View style={{ width: 36 }} />
             </View>
             <View style={styles.progressBg}>
-              <View style={[styles.progressFill, {
-                width: `${(quizIndex / activeQuiz.allQuestions.length) * 100}%`,
-              }]} />
+              <View style={[styles.progressFill, { width: `${(quizIndex / activeQuiz.allQuestions.length) * 100}%` }]} />
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <View style={styles.quizMeta}>
@@ -982,38 +806,28 @@ export default function CourseDetail() {
                     </View>
                   )}
                   <View style={styles.passingBadge}>
-                    <Text style={styles.passingBadgeText}>Pass: {PASSING_GRADE}%</Text>
+                    <Text style={styles.passingBadgeText}>
+                      Pass: {activeQuiz.quiz.passing_grade ?? getPassingGrade(activeQuiz.chapter.difficulty)}%
+                    </Text>
                   </View>
                 </View>
               </View>
-
               {activeQuiz.allQuestions[quizIndex]?.difficulty && (
                 <Text style={styles.questionTopic}>
                   {DIFFICULTY_META[activeQuiz.allQuestions[quizIndex].difficulty as Difficulty]?.icon}{" "}
                   {DIFFICULTY_META[activeQuiz.allQuestions[quizIndex].difficulty as Difficulty]?.label}
                 </Text>
               )}
-
               <Text style={styles.questionText}>{activeQuiz.allQuestions[quizIndex].question}</Text>
-
               {quizSubmitting ? (
-                <View style={styles.centered}>
-                  <ActivityIndicator size="large" color={PRIMARY} />
-                  <Text style={{ marginTop: 12, color: "#666" }}>Generating AI report...</Text>
-                </View>
+                <View style={styles.centered}><ActivityIndicator size="large" color={PRIMARY} /><Text style={{ marginTop: 12, color: "#666" }}>Generating AI report...</Text></View>
               ) : (
                 <View style={styles.options}>
                   {activeQuiz.allQuestions[quizIndex].options.map((opt, i) => (
-                    <OptionButton
-                      key={i}
-                      option={opt}
-                      index={i}
-                      onPress={() => handleQuizAnswer(opt)}
+                    <OptionButton key={i} option={opt} index={i} onPress={() => handleQuizAnswer(opt)}
                       state={optionStates[quizIndex] !== undefined
-                        ? (opt === activeQuiz.allQuestions[quizIndex].answer ? "correct"
-                          : (quizAnswers[quizIndex] === opt ? "wrong" : "idle"))
-                        : "idle"}
-                    />
+                        ? (opt === activeQuiz.allQuestions[quizIndex].answer ? "correct" : selectedOption[quizIndex] === opt ? "wrong" : "idle")
+                        : "idle"} />
                   ))}
                 </View>
               )}
@@ -1034,27 +848,41 @@ export default function CourseDetail() {
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-              <View style={[styles.reportScoreCard, {
-                borderColor: report.report.passed ? PRIMARY : "#ef4444",
-              }]}>
-                <Ionicons
-                  name={report.report.passed ? "trophy" : "refresh"}
-                  size={44}
-                  color={report.report.passed ? PRIMARY : "#ef4444"}
-                />
-                <Text style={[styles.reportScore, {
-                  color: report.report.passed ? PRIMARY : "#ef4444",
-                }]}>{report.score}%</Text>
+              <View style={[styles.reportScoreCard, { borderColor: report.report.passed ? PRIMARY : "#ef4444" }]}>
+                <Ionicons name={report.report.passed ? "trophy" : "refresh"} size={44} color={report.report.passed ? PRIMARY : "#ef4444"} />
+                <Text style={[styles.reportScore, { color: report.report.passed ? PRIMARY : "#ef4444" }]}>{report.score}%</Text>
                 <Text style={styles.reportStatus}>
-                  {report.report.passed ? "Passed ✅" : `Failed — need ${PASSING_GRADE}%`}
+                  {report.report.passed ? "Passed ✅" : `Failed — need ${report.passingGrade}%`}
                 </Text>
-                {report.attempts > 1 && (
-                  <Text style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
-                    Attempt #{report.attempts}
-                  </Text>
-                )}
+                {report.attempts > 1 && <Text style={{ fontSize: 12, color: "#999", marginTop: 4 }}>Attempt #{report.attempts}</Text>}
                 <Text style={styles.reportSummary}>{report.report.summary}</Text>
               </View>
+
+              {/* Chapter content rewritten */}
+              {report.contentRewritten && (
+                <View style={[styles.reportSection, { backgroundColor: "#eff6ff", borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "#bfdbfe" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ fontSize: 16 }}>📖</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#1d4ed8" }}>Chapter Content Updated</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: "#3b82f6", lineHeight: 20 }}>
+                    The AI has rewritten this chapter to be clearer and easier to understand. Re-read it before your next attempt — new questions are ready for you.
+                  </Text>
+                </View>
+              )}
+
+              {/* New questions (first fail) */}
+              {!report.contentRewritten && report.newQuestionsReady && (
+                <View style={[styles.reportSection, { backgroundColor: "#fff7ed", borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "#fed7aa" }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ fontSize: 16 }}>🔄</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#c2410c" }}>New Questions Ready</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: "#f97316", lineHeight: 20 }}>
+                    Fresh questions focusing on your weak areas are ready. Review the chapter and try again.
+                  </Text>
+                </View>
+              )}
 
               {report.report.passed && (
                 <View style={[styles.reportSection, { backgroundColor: PRIMARY + "15", borderRadius: 14, padding: 14, marginBottom: 16 }]}>
@@ -1086,9 +914,7 @@ export default function CourseDetail() {
 
               <View style={[styles.reportSection, { backgroundColor: PRIMARY + "15", borderRadius: 14, padding: 14 }]}>
                 <Text style={styles.reportSectionTitle}>🎯 Next Step</Text>
-                <Text style={{ fontSize: 14, color: "#444", lineHeight: 20 }}>
-                  {report.report.recommendation}
-                </Text>
+                <Text style={{ fontSize: 14, color: "#444", lineHeight: 20 }}>{report.report.recommendation}</Text>
               </View>
 
               <TouchableOpacity style={styles.completeBtn} onPress={() => setReport(null)}>
@@ -1105,124 +931,123 @@ export default function CourseDetail() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText: { marginTop: 12, fontSize: 14, color: "#999" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
-  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
+  centered:        { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText:     { marginTop: 12, fontSize: 14, color: "#999" },
+  header:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
+  backButton:      { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  headerTitle:     { fontSize: 18, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
   quizFromFileBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center" },
-  container: { flex: 1 },
-  hero: { backgroundColor: "white", padding: 24, alignItems: "center", marginBottom: 8 },
-  heroIconBox: { width: 80, height: 80, borderRadius: 20, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  typeBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  typeBadgeText: { fontSize: 12, fontWeight: "bold" },
-  courseTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4, marginTop: 4 },
-  courseSubject: { fontSize: 14, color: "#999", marginBottom: 12 },
+  container:       { flex: 1 },
+  hero:            { backgroundColor: "white", padding: 24, alignItems: "center", marginBottom: 8 },
+  heroIconBox:     { width: 80, height: 80, borderRadius: 20, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  typeBadge:       { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  typeBadgeText:   { fontSize: 12, fontWeight: "bold" },
+  courseTitle:     { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4, marginTop: 4 },
+  courseSubject:   { fontSize: 14, color: "#999", marginBottom: 12 },
   courseDescription: { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 22 },
-  entryQuizBanner: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1 },
+  entryQuizBanner:     { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1 },
   entryQuizBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  entryQuizIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  entryQuizTitle: { fontSize: 15, fontWeight: "bold" },
-  entryQuizSub: { fontSize: 12, marginTop: 2 },
+  entryQuizIcon:   { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  entryQuizTitle:  { fontSize: 15, fontWeight: "bold" },
+  entryQuizSub:    { fontSize: 12, marginTop: 2 },
   entryResultCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderRadius: 14, padding: 14, marginBottom: 16, elevation: 1, borderWidth: 1.5 },
-  entryResultTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
-  entryResultSub: { fontSize: 12, color: "#666", marginTop: 2 },
-  progressCard: { backgroundColor: "white", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, elevation: 1 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  progressTitle: { fontWeight: "bold", color: "#333" },
+  entryResultTitle:{ fontSize: 14, fontWeight: "bold", color: "#333" },
+  entryResultSub:  { fontSize: 12, color: "#666", marginTop: 2 },
+  progressCard:    { backgroundColor: "white", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, elevation: 1 },
+  progressHeader:  { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  progressTitle:   { fontWeight: "bold", color: "#333" },
   progressPercent: { fontWeight: "bold", color: PRIMARY, fontSize: 18 },
-  progressBarBg: { height: 8, backgroundColor: "#e5e7eb", borderRadius: 10, marginBottom: 12 },
+  progressBarBg:   { height: 8, backgroundColor: "#e5e7eb", borderRadius: 10, marginBottom: 12 },
   progressBarFill: { height: 8, backgroundColor: PRIMARY, borderRadius: 10 },
-  progressStats: { flexDirection: "row", justifyContent: "space-around" },
-  progressStat: { flexDirection: "row", alignItems: "center", gap: 6 },
-  progressStatText: { fontSize: 13, color: "#666" },
-  uploadBanner: { backgroundColor: PRIMARY + "15", marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: PRIMARY + "30" },
-  uploadBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  uploadBannerTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
-  uploadBannerSubtitle: { fontSize: 12, color: "#666", marginTop: 2 },
-  tabs: { flexDirection: "row", marginHorizontal: 16, backgroundColor: "white", borderRadius: 12, padding: 4, marginBottom: 16 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  progressStats:   { flexDirection: "row", justifyContent: "space-around" },
+  progressStat:    { flexDirection: "row", alignItems: "center", gap: 6 },
+  progressStatText:{ fontSize: 13, color: "#666" },
+  uploadBanner:    { backgroundColor: PRIMARY + "15", marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: PRIMARY + "30" },
+  uploadBannerLeft:{ flexDirection: "row", alignItems: "center", gap: 12 },
+  uploadBannerTitle:   { fontSize: 14, fontWeight: "bold", color: "#333" },
+  uploadBannerSubtitle:{ fontSize: 12, color: "#666", marginTop: 2 },
+  tabs:      { flexDirection: "row", marginHorizontal: 16, backgroundColor: "white", borderRadius: 12, padding: 4, marginBottom: 16 },
+  tab:       { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
   tabActive: { backgroundColor: PRIMARY },
-  tabText: { fontWeight: "600", color: "#999", fontSize: 14 },
+  tabText:   { fontWeight: "600", color: "#999", fontSize: 14 },
   tabTextActive: { color: "white" },
-  section: { paddingHorizontal: 16, paddingBottom: 40 },
+  section:   { paddingHorizontal: 16, paddingBottom: 40 },
   connector: { width: 2, height: 12, marginLeft: 29, marginVertical: -2, zIndex: 0 },
-  chapterCard: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 8, elevation: 1, zIndex: 1 },
+  chapterCard:     { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 8, elevation: 1, zIndex: 1 },
   chapterCardDone: { borderLeftWidth: 3, borderLeftColor: PRIMARY },
-  stepCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  stepNumber: { fontWeight: "bold", color: "#999", fontSize: 14 },
+  stepCircle:  { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  stepNumber:  { fontWeight: "bold", color: "#999", fontSize: 14 },
   chapterInfo: { flex: 1 },
-  chapterTitle: { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 4 },
-  chapterTitleLocked: { color: "#999" },
-  chapterMeta: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  chapterDuration: { fontSize: 12, color: "#999" },
-  assignmentBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 4 },
+  chapterTitle:        { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 4 },
+  chapterTitleLocked:  { color: "#999" },
+  chapterMeta:         { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  chapterDuration:     { fontSize: 12, color: "#999" },
+  assignmentBadge:     { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 4 },
   assignmentBadgeText: { fontSize: 10, fontWeight: "bold" },
-  adaptedBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  adaptedBadgeText: { fontSize: 10, fontWeight: "600" },
+  adaptedBadge:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  adaptedBadgeText:{ fontSize: 10, fontWeight: "600" },
   chapterRight: { alignItems: "flex-end" },
-  doneBadge: { backgroundColor: PRIMARY + "20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  doneBadgeText: { fontSize: 11, color: PRIMARY, fontWeight: "bold" },
+  doneBadge:    { backgroundColor: PRIMARY + "20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  doneBadgeText:{ fontSize: 11, color: PRIMARY, fontWeight: "bold" },
   passingGradeBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff7ed", borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: "#fed7aa" },
-  passingGradeText: { fontSize: 13, color: "#f97316", fontWeight: "600" },
-  quizCard: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 10, elevation: 1 },
+  passingGradeText:   { fontSize: 12, color: "#f97316", fontWeight: "600", flex: 1 },
+  quizCard:    { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 10, elevation: 1 },
   quizIconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  quizInfo: { flex: 1 },
-  quizTitle: { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 2 },
-  quizScore: { fontSize: 12, color: "#666", marginTop: 2 },
-  quizLocked: { fontSize: 12, color: "#ccc", marginTop: 2 },
-  quizRight: { alignItems: "flex-end" },
-  bonusBadge: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 3 },
-  bonusBadgeText: { fontSize: 10, color: "#8b5cf6", fontWeight: "600" },
-  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
+  quizInfo:    { flex: 1 },
+  quizTitle:   { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 2 },
+  quizScore:   { fontSize: 12, color: "#666", marginTop: 2 },
+  quizLocked:  { fontSize: 12, color: "#ccc", marginTop: 2 },
+  quizRight:   { alignItems: "flex-end" },
+  bonusBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 3 },
+  bonusBadgeText:{ fontSize: 10, color: "#8b5cf6", fontWeight: "600" },
+  summaryRow:  { flexDirection: "row", gap: 10, marginBottom: 24 },
   summaryCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: "center" },
-  summaryNumber: { fontSize: 22, fontWeight: "bold", marginBottom: 4 },
+  summaryNumber:{ fontSize: 22, fontWeight: "bold", marginBottom: 4 },
   summaryLabel: { fontSize: 11, color: "#666", textAlign: "center" },
   breakdownTitle: { fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 12 },
-  breakdownCard: { backgroundColor: "white", borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  breakdownLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  breakdownDot: { width: 10, height: 10, borderRadius: 5 },
-  breakdownTitle2: { fontSize: 13, color: "#333", fontWeight: "500", flex: 1 },
+  breakdownCard:  { backgroundColor: "white", borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  breakdownLeft:  { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  breakdownDot:   { width: 10, height: 10, borderRadius: 5 },
+  breakdownTitle2:{ fontSize: 13, color: "#333", fontWeight: "500", flex: 1 },
   breakdownRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  quizResultBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  quizResultBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   quizResultText: { fontSize: 11, fontWeight: "bold" },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
-  modalHeaderTitle: { fontSize: 16, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
-  chapterContent: { padding: 20, paddingBottom: 40 },
-  chapterDiffBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start", marginBottom: 16 },
+  modalHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
+  modalHeaderTitle:{ fontSize: 16, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
+  chapterContent:  { padding: 20, paddingBottom: 40 },
+  chapterDiffBadge:{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" },
   chapterDiffText: { fontSize: 12, fontWeight: "700" },
-  chapterContentTitle: { fontSize: 22, fontWeight: "bold", color: "#333", marginBottom: 16 },
+  chapterContentTitle:{ fontSize: 22, fontWeight: "bold", color: "#333", marginBottom: 16 },
   chapterContentBody: { fontSize: 15, color: "#444", lineHeight: 26 },
-  completeBtn: { backgroundColor: PRIMARY, borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 24 },
+  completeBtn:     { backgroundColor: PRIMARY, borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 24 },
   completeBtnText: { color: "white", fontWeight: "bold", fontSize: 16 },
   completedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: PRIMARY + "15", borderRadius: 12, padding: 12, marginTop: 16 },
-  completedBannerText: { color: PRIMARY, fontWeight: "600", fontSize: 14 },
-  progressBg: { height: 6, backgroundColor: "#e5e7eb" },
+  completedBannerText:{ color: PRIMARY, fontWeight: "600", fontSize: 14 },
+  progressBg:   { height: 6, backgroundColor: "#e5e7eb" },
   progressFill: { height: 6, backgroundColor: PRIMARY },
-  quizMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  quizMeta:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   quizMetaText: { fontSize: 13, color: "#999" },
-  passingBadge: { backgroundColor: "#fff7ed", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  passingBadge:     { backgroundColor: "#fff7ed", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   passingBadgeText: { fontSize: 12, color: "#f97316", fontWeight: "600" },
-  questionTopic: { fontSize: 12, color: "#8b5cf6", fontWeight: "600", marginBottom: 8 },
+  questionTopic:{ fontSize: 12, color: "#8b5cf6", fontWeight: "600", marginBottom: 8 },
   questionText: { fontSize: 18, fontWeight: "bold", color: "#333", lineHeight: 26, marginBottom: 24 },
-  options: { gap: 12 },
-  optionBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "white", borderRadius: 14, padding: 16, gap: 14, elevation: 1, borderWidth: 1.5, borderColor: "#e5e7eb" },
+  options:      { gap: 12 },
+  optionBtn:    { flexDirection: "row", alignItems: "center", backgroundColor: "white", borderRadius: 14, padding: 16, gap: 14, elevation: 1, borderWidth: 1.5, borderColor: "#e5e7eb" },
   optionLetter: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  optionLetterText: { fontSize: 13, fontWeight: "bold", color: "#555" },
-  optionText: { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
-  reportScoreCard: { backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center", marginBottom: 20, elevation: 2, borderWidth: 2 },
-  reportScore: { fontSize: 48, fontWeight: "bold", marginTop: 8 },
+  optionLetterText:{ fontSize: 13, fontWeight: "bold", color: "#555" },
+  optionText:   { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
+  reportScoreCard:{ backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center", marginBottom: 20, elevation: 2, borderWidth: 2 },
+  reportScore:  { fontSize: 48, fontWeight: "bold", marginTop: 8 },
   reportStatus: { fontSize: 16, fontWeight: "600", color: "#666", marginTop: 4 },
-  reportSummary: { fontSize: 14, color: "#666", textAlign: "center", marginTop: 12, lineHeight: 20 },
-  reportSection: { marginBottom: 16 },
-  reportSectionTitle: { fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 10 },
-  reportItem: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
-  reportItemText: { fontSize: 14, color: "#444", flex: 1, lineHeight: 20 },
+  reportSummary:{ fontSize: 14, color: "#666", textAlign: "center", marginTop: 12, lineHeight: 20 },
+  reportSection:{ marginBottom: 16 },
+  reportSectionTitle:{ fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 10 },
+  reportItem:   { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
+  reportItemText:{ fontSize: 14, color: "#444", flex: 1, lineHeight: 20 },
   feedbackCard: { backgroundColor: "white", borderRadius: 10, padding: 12, marginBottom: 8, borderLeftWidth: 3, elevation: 1 },
-  feedbackHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  feedbackQ: { fontSize: 13, color: "#333", flex: 1, lineHeight: 18 },
-  feedbackCorrect: { fontSize: 12, color: "#22c55e", marginTop: 4, marginLeft: 24 },
-  feedbackTopic: { fontSize: 11, color: "#999", marginTop: 2, marginLeft: 24 },
+  feedbackHeader:{ flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  feedbackQ:    { fontSize: 13, color: "#333", flex: 1, lineHeight: 18 },
+  feedbackCorrect:{ fontSize: 12, color: "#22c55e", marginTop: 4, marginLeft: 24 },
+  feedbackTopic:  { fontSize: 11, color: "#999", marginTop: 2, marginLeft: 24 },
 });
