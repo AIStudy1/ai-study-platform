@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/supabaseConfig";
@@ -68,24 +68,36 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<TabType>("stats");
   const [loadingBadges, setLoadingBadges] = useState(false);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [moodleConnected, setMoodleConnected] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-
     apiGetProfile()
-      .then((response) => {
-        if (response.data) setProfile(response.data);
-      })
-      .catch((error) => console.error("Error fetching profile:", error));
-
+      .then((res) => { if (res.data) setProfile(res.data); })
+      .catch((e) => console.error("Error fetching profile:", e));
     apiGetActivity(10)
-      .then((response) => {
-        if (response.data) setActivity(response.data);
-      })
-      .catch((error) => console.error("Error fetching activity:", error));
-
+      .then((res) => { if (res.data) setActivity(res.data); })
+      .catch((e) => console.error("Error fetching activity:", e));
     fetchBadges();
+    checkMoodle();
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === "leaderboard") fetchLeaderboard();
+  }, [activeTab]);
+
+  const checkMoodle = async () => {
+    try {
+      const { data } = await supabase
+        .from("moodle_connections")
+        .select("id")
+        .eq("user_id", user?.id)
+        .single();
+      setMoodleConnected(!!data);
+    } catch {
+      setMoodleConnected(false);
+    }
+  };
 
   const fetchBadges = async () => {
     setLoadingBadges(true);
@@ -100,7 +112,7 @@ export default function Profile() {
   };
 
   const fetchLeaderboard = async () => {
-    if (leaderboard.length > 0) return; // already loaded
+    if (leaderboard.length > 0) return;
     setLoadingLeaderboard(true);
     try {
       const res = await apiGetLeaderboard();
@@ -112,16 +124,16 @@ export default function Profile() {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === "leaderboard") fetchLeaderboard();
-  }, [activeTab]);
-
-  const displayName = profile?.full_name || "Student";
-  const avatarLetter = displayName.charAt(0).toUpperCase();
-
   const handleLogout = async () => {
-    await signOut();
-    router.replace("/");
+    Alert.alert("Logout", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout", style: "destructive", onPress: async () => {
+          await signOut();
+          router.replace("/");
+        },
+      },
+    ]);
   };
 
   const showPhotoOptions = () => {
@@ -134,75 +146,34 @@ export default function Profile() {
 
   const takePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Please allow camera access");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      await uploadPhoto(result.assets[0].uri);
-    }
+    if (!permission.granted) { Alert.alert("Permission needed", "Please allow camera access"); return; }
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled) await uploadPhoto(result.assets[0].uri);
   };
 
   const pickFromGallery = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Please allow photo access");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      await uploadPhoto(result.assets[0].uri);
-    }
+    if (!permission.granted) { Alert.alert("Permission needed", "Please allow photo access"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled) await uploadPhoto(result.assets[0].uri);
   };
 
   const uploadPhoto = async (uri: string) => {
     try {
       setUploadingPhoto(true);
-
       const ext = uri.split(".").pop()?.toLowerCase() || "jpg";
       const fileName = `avatars/${user?.id}-${Date.now()}.${ext}`;
       const contentType = ext === "png" ? "image/png" : "image/jpeg";
-
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: "base64" as any,
-      });
-
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" as any });
       const binaryString = atob(base64);
       const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      const { error: uploadError } = await supabase.storage
-        .from("course-files")
-        .upload(fileName, bytes, { contentType, upsert: true });
-
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      const { error: uploadError } = await supabase.storage.from("course-files").upload(fileName, bytes, { contentType, upsert: true });
       if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("course-files")
-        .getPublicUrl(fileName);
-
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ avatar_url: urlData.publicUrl })
-        .eq("id", user?.id);
-
+      const { data: urlData } = supabase.storage.from("course-files").getPublicUrl(fileName);
+      const { error: updateError } = await supabase.from("users").update({ avatar_url: urlData.publicUrl }).eq("id", user?.id);
       if (updateError) throw updateError;
-
-      setProfile((prev) =>
-        prev ? { ...prev, avatar_url: urlData.publicUrl } : prev
-      );
-
+      setProfile((prev) => prev ? { ...prev, avatar_url: urlData.publicUrl } : prev);
       await apiLogActivity("photo_updated", "Updated profile photo 📸");
       Alert.alert("Success", "Profile photo updated!");
     } catch (error: any) {
@@ -212,6 +183,8 @@ export default function Profile() {
     }
   };
 
+  const displayName = profile?.full_name || "Student";
+  const avatarLetter = displayName.charAt(0).toUpperCase();
   const xpInLevel = (profile?.xp || 0) % 1000;
   const xpPercent = (xpInLevel / 1000) * 100;
   const earnedBadges = badges.filter((b) => b.earned);
@@ -220,11 +193,22 @@ export default function Profile() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f7f8f6" }}>
       <ScrollView>
+
         {/* ── Header ── */}
         <View style={styles.header}>
+
+          {/* Settings button top-right */}
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            onPress={() => router.push("/(tabs)/settings" as any)}
+          >
+            <Ionicons name="settings-outline" size={22} color="#666" />
+          </TouchableOpacity>
+
+          {/* Avatar */}
           <TouchableOpacity onPress={showPhotoOptions} style={styles.avatarContainer}>
             {uploadingPhoto ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color="white" size="large" />
             ) : profile?.avatar_url ? (
               <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
             ) : (
@@ -290,6 +274,25 @@ export default function Profile() {
         {/* ── Stats tab ── */}
         {activeTab === "stats" && (
           <View style={styles.section}>
+
+            {/* Moodle card */}
+            <TouchableOpacity
+              style={[styles.moodleCard, { borderLeftColor: moodleConnected ? "#22c55e" : PRIMARY }]}
+              onPress={() => router.push("/(tabs)/moodle" as any)}
+            >
+              <View style={[styles.moodleIconBox, { backgroundColor: moodleConnected ? "#22c55e20" : PRIMARY + "20" }]}>
+                <Ionicons name="school-outline" size={22} color={moodleConnected ? "#22c55e" : PRIMARY} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.moodleCardTitle}>University Moodle</Text>
+                <Text style={styles.moodleCardSub}>
+                  {moodleConnected ? "✅ Connected — tap to manage" : "Tap to connect your Moodle account"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#ccc" />
+            </TouchableOpacity>
+
+            {/* Recent Activity */}
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             {activity.length === 0 ? (
               <View style={styles.emptyBox}>
@@ -311,6 +314,7 @@ export default function Profile() {
               ))
             )}
 
+            {/* Logout */}
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
               <Text style={styles.logoutText}>Log Out</Text>
@@ -327,9 +331,7 @@ export default function Profile() {
               <>
                 {earnedBadges.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitle}>
-                      Earned — {earnedBadges.length}/{badges.length}
-                    </Text>
+                    <Text style={styles.sectionTitle}>Earned — {earnedBadges.length}/{badges.length}</Text>
                     <View style={styles.badgeGrid}>
                       {earnedBadges.map((badge) => (
                         <View key={badge.id} style={styles.badgeCard}>
@@ -344,7 +346,6 @@ export default function Profile() {
                     </View>
                   </>
                 )}
-
                 {lockedBadges.length > 0 && (
                   <>
                     <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Locked</Text>
@@ -355,16 +356,13 @@ export default function Profile() {
                           <Text style={[styles.badgeName, { color: "#999" }]}>{badge.name}</Text>
                           <Text style={styles.badgeDesc}>{badge.description}</Text>
                           <View style={[styles.badgeXP, { backgroundColor: "#f3f4f6" }]}>
-                            <Text style={[styles.badgeXPText, { color: "#999" }]}>
-                              +{badge.xp_reward} XP
-                            </Text>
+                            <Text style={[styles.badgeXPText, { color: "#999" }]}>+{badge.xp_reward} XP</Text>
                           </View>
                         </View>
                       ))}
                     </View>
                   </>
                 )}
-
                 {badges.length === 0 && (
                   <View style={styles.emptyBox}>
                     <Text style={styles.emptyText}>Complete courses and quizzes to earn badges!</Text>
@@ -410,21 +408,28 @@ export default function Profile() {
                     </View>
                   </View>
                 ))}
+                {leaderboard.length === 0 && (
+                  <View style={styles.emptyBox}>
+                    <Text style={styles.emptyText}>No leaderboard data yet</Text>
+                  </View>
+                )}
               </>
             )}
           </View>
         )}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: "white", padding: 24, alignItems: "center", paddingBottom: 20 },
-  avatarContainer: { position: "relative", marginBottom: 12 },
-  avatar: { width: 80, height: 80, borderRadius: 40 },
-  avatarFallback: { width: 80, height: 80, borderRadius: 40, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center" },
-  avatarLetter: { fontSize: 32, fontWeight: "bold", color: "white" },
+  header: { backgroundColor: "white", padding: 24, alignItems: "center", paddingBottom: 20, paddingTop: 16 },
+  settingsBtn: { position: "absolute", top: 16, right: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  avatarContainer: { position: "relative", marginBottom: 12, marginTop: 8 },
+  avatar: { width: 84, height: 84, borderRadius: 42 },
+  avatarFallback: { width: 84, height: 84, borderRadius: 42, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center" },
+  avatarLetter: { fontSize: 34, fontWeight: "bold", color: "white" },
   cameraIcon: { position: "absolute", bottom: 0, right: 0, backgroundColor: "#333", borderRadius: 10, padding: 4 },
   name: { fontSize: 20, fontWeight: "bold", color: "#333", marginBottom: 4 },
   email: { fontSize: 13, color: "#999", marginBottom: 16 },
@@ -446,6 +451,10 @@ const styles = StyleSheet.create({
   tabTextActive: { color: "white" },
   section: { padding: 16, paddingBottom: 40 },
   sectionTitle: { fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 12 },
+  moodleCard: { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20, elevation: 1, borderLeftWidth: 3 },
+  moodleIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  moodleCardTitle: { fontSize: 14, fontWeight: "700", color: "#333" },
+  moodleCardSub: { fontSize: 12, color: "#999", marginTop: 2 },
   emptyBox: { backgroundColor: "white", borderRadius: 14, padding: 24, alignItems: "center" },
   emptyText: { color: "#999", fontSize: 14, textAlign: "center" },
   activityCard: { backgroundColor: "white", borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },

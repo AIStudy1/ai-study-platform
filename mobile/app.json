@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "apiUrl": "http://192.168.100.65:8000"
+      "apiUrl": "http://192.168.1.190:8000"
     },
     "ios": {
       "supportsTablet": true

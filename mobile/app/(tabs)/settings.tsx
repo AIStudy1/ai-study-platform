@@ -146,14 +146,7 @@ export default function Settings() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => {
-              // Prevent: "GO_BACK was not handled by any navigator"
-              if (navigation && "canGoBack" in navigation && (navigation as any).canGoBack?.()) {
-                (navigation as any).goBack?.();
-              } else {
-                router.replace("/(tabs)/dashboard" as any);
-              }
-            }}
+            onPress={() => router.push("/(tabs)/profile" as any)}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
