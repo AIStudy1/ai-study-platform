@@ -48,10 +48,13 @@ interface Badge {
 interface LeaderboardEntry {
   rank: number;
   id: string;
-  full_name: string;
+  fullName: string;
+  full_name?: string;
   xp: number;
+  weeklyXP: number;
   level: number;
-  streak_days: number;
+  streakDays: number;
+  streak_days?: number;
   isMe: boolean;
 }
 
@@ -115,8 +118,8 @@ export default function Profile() {
     if (leaderboard.length > 0) return;
     setLoadingLeaderboard(true);
     try {
-      const res = await apiGetLeaderboard();
-      if (res.data) setLeaderboard(res.data);
+      const res = await apiGetLeaderboard("global", "alltime");
+      if (res.data?.board) setLeaderboard(res.data.board);
     } catch (e) {
       console.error("Error fetching leaderboard:", e);
     } finally {
@@ -376,45 +379,49 @@ export default function Profile() {
         {/* ── Leaderboard tab ── */}
         {activeTab === "leaderboard" && (
           <View style={styles.section}>
-            {loadingLeaderboard ? (
-              <ActivityIndicator color={PRIMARY} style={{ marginTop: 40 }} />
-            ) : (
-              <>
-                <Text style={styles.sectionTitle}>Top Students</Text>
-                {leaderboard.map((entry) => (
-                  <View
-                    key={entry.id}
-                    style={[styles.leaderCard, entry.isMe && styles.leaderCardMe]}
-                  >
-                    <Text style={styles.leaderRank}>
-                      {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`}
-                    </Text>
-                    <View style={styles.leaderAvatar}>
-                      <Text style={styles.leaderAvatarText}>
-                        {entry.full_name?.charAt(0).toUpperCase() || "?"}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.leaderName}>
-                        {entry.full_name} {entry.isMe ? "(You)" : ""}
-                      </Text>
-                      <Text style={styles.leaderSub}>
-                        Lv {entry.level} · 🔥 {entry.streak_days} days
-                      </Text>
-                    </View>
-                    <View style={styles.leaderXP}>
-                      <Text style={styles.leaderXPText}>{entry.xp.toLocaleString()}</Text>
-                      <Text style={styles.leaderXPLabel}>XP</Text>
-                    </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: PRIMARY, padding: 20, borderRadius: 18,
+                flexDirection: "row", alignItems: "center", gap: 14,
+                marginBottom: 16,
+              }}
+              onPress={() => router.push("/(tabs)/leaderboard" as any)}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontSize: 36 }}>🏆</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "white", fontWeight: "800", fontSize: 17 }}>
+                  Open Leaderboard
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 3 }}>
+                  Global · Friends · Streaks · Leagues
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward-circle" size={28} color="rgba(255,255,255,0.9)" />
+            </TouchableOpacity>
+
+            <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16, gap: 12 }}>
+              {[
+                { icon: "🌍", label: "Global Rankings", sub: "See where you rank among all students" },
+                { icon: "👥", label: "Friends Leaderboard", sub: "Compare XP with your friends" },
+                { icon: "🔥", label: "Streak & Leagues", sub: "Bronze → Silver → Gold → Diamond → Legend" },
+                { icon: "📅", label: "Weekly & All-time", sub: "Weekly reset every Monday" },
+              ].map((item, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}
+                  onPress={() => router.push("/(tabs)/leaderboard" as any)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 24, width: 36, textAlign: "center" }}>{item.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#333" }}>{item.label}</Text>
+                    <Text style={{ fontSize: 12, color: "#999", marginTop: 2 }}>{item.sub}</Text>
                   </View>
-                ))}
-                {leaderboard.length === 0 && (
-                  <View style={styles.emptyBox}>
-                    <Text style={styles.emptyText}>No leaderboard data yet</Text>
-                  </View>
-                )}
-              </>
-            )}
+                  <Ionicons name="chevron-forward" size={16} color="#ccc" />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
