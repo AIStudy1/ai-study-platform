@@ -49,7 +49,7 @@ interface PomodoroContextType {
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS: PomodoroSettings = {
-  enabled: false,
+  enabled: true,
   workMinutes: 25,
   breakMinutes: 5,
   alertStyle: "sound_vibration",

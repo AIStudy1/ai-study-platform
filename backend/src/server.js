@@ -11,6 +11,7 @@ import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
 import plannerRoutes from "./routes/plannerRoutes.js";
+import { streakRouter } from "./routes/streakRoutes.js";
 
 dotenv.config();
 
@@ -19,24 +20,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth",      authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/ai-courses", aiCourseRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/activity", activityRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/rewards", rewardRoutes);
-app.use("/api/planner", plannerRoutes);
+app.use("/api/ai-courses",aiCourseRoutes);
+app.use("/api/ai",        aiRoutes);
+app.use("/api/activity",  activityRoutes);
+app.use("/api/user",      userRoutes);
+app.use("/api/upload",    uploadRoutes);
+app.use("/api/rewards",   rewardRoutes);
+app.use("/api/planner",   plannerRoutes);
+app.use("/api/streaks",   streakRouter);   // ← streak + leaderboard + freeze
 
 app.get("/", (req, res) => {
   res.send("LearnFlow API Running ✅");
 });
 
 app.get("/test-db", async (req, res) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*');
+  const { data, error } = await supabase.from('users').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
