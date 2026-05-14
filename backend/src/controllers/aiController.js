@@ -159,34 +159,66 @@ export const generateCourse = async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are a curriculum designer. Always respond with valid JSON only, no extra text.`,
+        content: `You are a curriculum designer and educational content writer.
+Always respond with valid JSON only, no extra text.`,
       },
       {
         role: "user",
-        content: `Create a complete course on "${topic}" for a ${level} level student.
-        Respond with this exact JSON structure:
-        {
-          "title": "course title",
-          "subject": "subject area",
-          "description": "short description",
-          "chapters": [
-            {
-              "title": "chapter title",
-              "content": "detailed chapter content (at least 3 paragraphs)",
-              "quiz": {
-                "title": "quiz title",
-                "questions": [
-                  {
-                    "question": "question text",
-                    "options": ["A", "B", "C", "D"],
-                    "answer": "A"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-        Generate 4 chapters. Each chapter must have 3 quiz questions.`,
+        content:
+          `Create a complete course on "${topic}" for a ${level} level student.\n\n` +
+
+          `IMPORTANT CONTENT FORMATTING RULES:\n` +
+          `- Make the course visually appealing and easy to memorize.\n` +
+          `- Use markdown formatting inside the content.\n` +
+          `- Use emojis naturally to improve readability and engagement.\n` +
+          `- Use short paragraphs and proper spacing.\n` +
+          `- Use section headings and subheadings.\n` +
+          `- Use bullet points for key ideas.\n` +
+          `- Highlight important concepts using markdown bold formatting.\n` +
+          `- Include memory tips, examples, and mini recaps.\n` +
+          `- Make explanations beginner-friendly and easy to revise quickly.\n` +
+          `- Avoid giant blocks of text.\n` +
+          `- Make the content feel modern, interactive, and visually clean.\n\n` +
+
+          `Each chapter content MUST follow a structure similar to:\n` +
+          ` 📘 Chapter Title\n` +
+          ` 🎯 Main Concept\n` +
+          `Explanation...\n\n` +
+          ` 🧠 Key Points\n` +
+          `- point 1\n` +
+          `- point 2\n\n` +
+          ` 💡 Example\n` +
+          `Example explanation...\n\n` +
+          ` ⚠️ Common Mistakes\n` +
+          `- mistake 1\n\n` +
+          ` 📝 Quick Recap\n` +
+          `Short memorable summary.\n\n` +
+
+          `Respond with this exact JSON structure:\n` +
+          `{\n` +
+          `  "title": "course title",\n` +
+          `  "subject": "subject area",\n` +
+          `  "description": "short description",\n` +
+          `  "chapters": [\n` +
+          `    {\n` +
+          `      "title": "chapter title",\n` +
+          `      "content": "well formatted markdown chapter content",\n` +
+          `      "quiz": {\n` +
+          `        "title": "quiz title",\n` +
+          `        "questions": [\n` +
+          `          {\n` +
+          `            "question": "question text",\n` +
+          `            "options": ["A", "B", "C", "D"],\n` +
+          `            "answer": "A"\n` +
+          `          }\n` +
+          `        ]\n` +
+          `      }\n` +
+          `    }\n` +
+          `  ]\n` +
+          `}\n\n` +
+
+          `Generate exactly 4 chapters.\n` +
+          `Each chapter must have exactly 3 quiz questions.`,
       },
     ];
 
@@ -617,7 +649,7 @@ export const generatePreCourseQuiz = async (req, res) => {
           content:
             `Create a level-diagnostic quiz for a student who wants to learn: "${topic}".\n\n` +
             `Rules:\n` +
-            `- Choose between 5 and 8 questions — pick the count that best gauges the topic's depth.\n` +
+            `- Choose between 5 and 10 questions — pick the count that best gauges the topic's depth.\n` +
             `- Questions must test PRIOR KNOWLEDGE the student already has (or doesn't), not the course itself.\n` +
             `- Mix: ~35% easy (basic definitions), ~40% medium (applied understanding), ~25% hard (deeper concepts).\n` +
             `- Each question must have exactly 4 options.\n` +
@@ -670,21 +702,41 @@ export const submitPreCourseQuiz = async (req, res) => {
       temperature: 0.5,
       messages: [
         {
-          role: "system",
-          content: "You are a curriculum designer. Respond with valid JSON only — no markdown, no extra text.",
-        },
-        {
           role: "user",
           content:
             `Create a complete course on "${topic}" calibrated for a student at the "${level}" level.\n\n` +
+        
             `Level guidance:\n` +
             (level === "beginner"
               ? `- Start from scratch. Define all key terms. Use analogies. Build foundations slowly.\n`
               : level === "intermediate"
               ? `- Skip basics. Assume core concepts are known. Focus on applied understanding and common pitfalls.\n`
               : `- Assume solid foundations. Go deep. Cover edge cases, nuances, and advanced applications.\n`) +
-            `\nGenerate exactly 5 chapters. Each chapter must have a quiz with exactly 4 questions.\n` +
-            `Each chapter must have detailed content (at least 4 solid paragraphs).\n\n` +
+        
+            `\nIMPORTANT CONTENT FORMATTING RULES:\n` +
+            `- Make the course visually appealing and easy to memorize.\n` +
+            `- Use markdown formatting.\n` +
+            `- Use emojis naturally to improve readability.\n` +
+            `- Use short paragraphs and proper spacing.\n` +
+            `- Use headings and subheadings.\n` +
+            `- Use bullet points for important ideas.\n` +
+            `- Bold important keywords and concepts.\n` +
+            `- Include examples, memory tricks, and quick recaps.\n` +
+            `- Avoid huge blocks of text.\n` +
+            `- Make the content feel modern, interactive, and easy to revise.\n\n` +
+        
+            `Each chapter content should contain sections similar to:\n` +
+            ` 📘 Chapter Title\n` +
+            ` 🎯 Main Concept\n` +
+            ` 🧠 Key Points\n` +
+            ` 💡 Example\n` +
+            ` ⚠️ Common Mistakes\n` +
+            ` 📝 Quick Recap\n\n` +
+        
+            `Generate exactly 5 chapters.\n` +
+            `Each chapter must have a quiz with exactly 4 questions.\n` +
+            `Each chapter must contain detailed formatted content.\n\n` +
+        
             `Return ONLY this JSON structure:\n` +
             `{\n` +
             `  "title": "course title",\n` +
@@ -693,7 +745,7 @@ export const submitPreCourseQuiz = async (req, res) => {
             `  "chapters": [\n` +
             `    {\n` +
             `      "title": "chapter title",\n` +
-            `      "content": "detailed chapter content — minimum 4 paragraphs",\n` +
+            `      "content": "well formatted markdown chapter content",\n` +
             `      "quiz": {\n` +
             `        "title": "Quiz: chapter title",\n` +
             `        "questions": [\n` +
@@ -708,7 +760,7 @@ export const submitPreCourseQuiz = async (req, res) => {
             `    }\n` +
             `  ]\n` +
             `}`,
-        },
+        }
       ],
     });
 

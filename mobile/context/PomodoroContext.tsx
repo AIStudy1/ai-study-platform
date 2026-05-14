@@ -11,7 +11,7 @@ import { Vibration } from "react-native";
 import { Audio } from "expo-av";
 import { apiAddStudyProgress } from "@/services/api";
 
-const BELL_SOUND = require("mobile/assets/sounds/warning.mp3");
+const BELL_SOUND = require("/Users/mac/ai-study-platform/mobile/assets/sounds/warning.mp3");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -932,122 +932,831 @@ export default function CourseDetail() {
 }
 
 const styles = StyleSheet.create({
-  centered:        { flex: 1, alignItems: "center", justifyContent: "center" },
-  loadingText:     { marginTop: 12, fontSize: 14, color: "#999" },
-  header:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
-  backButton:      { width: 36, height: 36, borderRadius: 18, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  headerTitle:     { fontSize: 18, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
-  quizFromFileBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY + "20", alignItems: "center", justifyContent: "center" },
-  container:       { flex: 1 },
-  hero:            { backgroundColor: "white", padding: 24, alignItems: "center", marginBottom: 8 },
-  heroIconBox:     { width: 80, height: 80, borderRadius: 20, backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  typeBadge:       { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  typeBadgeText:   { fontSize: 12, fontWeight: "bold" },
-  courseTitle:     { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: "center", marginBottom: 4, marginTop: 4 },
-  courseSubject:   { fontSize: 14, color: "#999", marginBottom: 12 },
-  courseDescription: { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 22 },
-  entryQuizBanner:     { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1 },
-  entryQuizBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  entryQuizIcon:   { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  entryQuizTitle:  { fontSize: 15, fontWeight: "bold" },
-  entryQuizSub:    { fontSize: 12, marginTop: 2 },
-  entryResultCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "white", borderRadius: 14, padding: 14, marginBottom: 16, elevation: 1, borderWidth: 1.5 },
-  entryResultTitle:{ fontSize: 14, fontWeight: "bold", color: "#333" },
-  entryResultSub:  { fontSize: 12, color: "#666", marginTop: 2 },
-  progressCard:    { backgroundColor: "white", marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 16, elevation: 1 },
-  progressHeader:  { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  progressTitle:   { fontWeight: "bold", color: "#333" },
-  progressPercent: { fontWeight: "bold", color: PRIMARY, fontSize: 18 },
-  progressBarBg:   { height: 8, backgroundColor: "#e5e7eb", borderRadius: 10, marginBottom: 12 },
-  progressBarFill: { height: 8, backgroundColor: PRIMARY, borderRadius: 10 },
-  progressStats:   { flexDirection: "row", justifyContent: "space-around" },
-  progressStat:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  progressStatText:{ fontSize: 13, color: "#666" },
-  uploadBanner:    { backgroundColor: PRIMARY + "15", marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: PRIMARY + "30" },
-  uploadBannerLeft:{ flexDirection: "row", alignItems: "center", gap: 12 },
-  uploadBannerTitle:   { fontSize: 14, fontWeight: "bold", color: "#333" },
-  uploadBannerSubtitle:{ fontSize: 12, color: "#666", marginTop: 2 },
-  tabs:      { flexDirection: "row", marginHorizontal: 16, backgroundColor: "white", borderRadius: 12, padding: 4, marginBottom: 16 },
-  tab:       { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
-  tabActive: { backgroundColor: PRIMARY },
-  tabText:   { fontWeight: "600", color: "#999", fontSize: 14 },
-  tabTextActive: { color: "white" },
-  section:   { paddingHorizontal: 16, paddingBottom: 40 },
-  connector: { width: 2, height: 12, marginLeft: 29, marginVertical: -2, zIndex: 0 },
-  chapterCard:     { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 8, elevation: 1, zIndex: 1 },
-  chapterCardDone: { borderLeftWidth: 3, borderLeftColor: PRIMARY },
-  stepCircle:  { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  stepNumber:  { fontWeight: "bold", color: "#999", fontSize: 14 },
-  chapterInfo: { flex: 1 },
-  chapterTitle:        { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 4 },
-  chapterTitleLocked:  { color: "#999" },
-  chapterMeta:         { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  chapterDuration:     { fontSize: 12, color: "#999" },
-  assignmentBadge:     { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 4 },
-  assignmentBadgeText: { fontSize: 10, fontWeight: "bold" },
-  adaptedBadge:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  adaptedBadgeText:{ fontSize: 10, fontWeight: "600" },
-  chapterRight: { alignItems: "flex-end" },
-  doneBadge:    { backgroundColor: PRIMARY + "20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  doneBadgeText:{ fontSize: 11, color: PRIMARY, fontWeight: "bold" },
-  passingGradeBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff7ed", borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: "#fed7aa" },
-  passingGradeText:   { fontSize: 12, color: "#f97316", fontWeight: "600", flex: 1 },
-  quizCard:    { backgroundColor: "white", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", marginBottom: 10, elevation: 1 },
-  quizIconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  quizInfo:    { flex: 1 },
-  quizTitle:   { fontWeight: "bold", color: "#333", fontSize: 14, marginBottom: 2 },
-  quizScore:   { fontSize: 12, color: "#666", marginTop: 2 },
-  quizLocked:  { fontSize: 12, color: "#ccc", marginTop: 2 },
-  quizRight:   { alignItems: "flex-end" },
-  bonusBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 3 },
-  bonusBadgeText:{ fontSize: 10, color: "#8b5cf6", fontWeight: "600" },
-  summaryRow:  { flexDirection: "row", gap: 10, marginBottom: 24 },
-  summaryCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: "center" },
-  summaryNumber:{ fontSize: 22, fontWeight: "bold", marginBottom: 4 },
-  summaryLabel: { fontSize: 11, color: "#666", textAlign: "center" },
-  breakdownTitle: { fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 12 },
-  breakdownCard:  { backgroundColor: "white", borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  breakdownLeft:  { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  breakdownDot:   { width: 10, height: 10, borderRadius: 5 },
-  breakdownTitle2:{ fontSize: 13, color: "#333", fontWeight: "500", flex: 1 },
-  breakdownRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  quizResultBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  quizResultText: { fontSize: 11, fontWeight: "bold" },
-  modalHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, backgroundColor: "white", elevation: 2 },
-  modalHeaderTitle:{ fontSize: 16, fontWeight: "bold", color: "#333", flex: 1, textAlign: "center", marginHorizontal: 8 },
-  chapterContent:  { padding: 20, paddingBottom: 40 },
-  chapterDiffBadge:{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" },
-  chapterDiffText: { fontSize: 12, fontWeight: "700" },
-  chapterContentTitle:{ fontSize: 22, fontWeight: "bold", color: "#333", marginBottom: 16 },
-  chapterContentBody: { fontSize: 15, color: "#444", lineHeight: 26 },
-  completeBtn:     { backgroundColor: PRIMARY, borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 24 },
-  completeBtnText: { color: "white", fontWeight: "bold", fontSize: 16 },
-  completedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: PRIMARY + "15", borderRadius: 12, padding: 12, marginTop: 16 },
-  completedBannerText:{ color: PRIMARY, fontWeight: "600", fontSize: 14 },
-  progressBg:   { height: 6, backgroundColor: "#e5e7eb" },
-  progressFill: { height: 6, backgroundColor: PRIMARY },
-  quizMeta:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  quizMetaText: { fontSize: 13, color: "#999" },
-  passingBadge:     { backgroundColor: "#fff7ed", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  passingBadgeText: { fontSize: 12, color: "#f97316", fontWeight: "600" },
-  questionTopic:{ fontSize: 12, color: "#8b5cf6", fontWeight: "600", marginBottom: 8 },
-  questionText: { fontSize: 18, fontWeight: "bold", color: "#333", lineHeight: 26, marginBottom: 24 },
-  options:      { gap: 12 },
-  optionBtn:    { flexDirection: "row", alignItems: "center", backgroundColor: "white", borderRadius: 14, padding: 16, gap: 14, elevation: 1, borderWidth: 1.5, borderColor: "#e5e7eb" },
-  optionLetter: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  optionLetterText:{ fontSize: 13, fontWeight: "bold", color: "#555" },
-  optionText:   { fontSize: 14, color: "#333", flex: 1, lineHeight: 20 },
-  reportScoreCard:{ backgroundColor: "white", borderRadius: 20, padding: 28, alignItems: "center", marginBottom: 20, elevation: 2, borderWidth: 2 },
-  reportScore:  { fontSize: 48, fontWeight: "bold", marginTop: 8 },
-  reportStatus: { fontSize: 16, fontWeight: "600", color: "#666", marginTop: 4 },
-  reportSummary:{ fontSize: 14, color: "#666", textAlign: "center", marginTop: 12, lineHeight: 20 },
-  reportSection:{ marginBottom: 16 },
-  reportSectionTitle:{ fontSize: 16, fontWeight: "bold", color: "#333", marginBottom: 10 },
-  reportItem:   { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
-  reportItemText:{ fontSize: 14, color: "#444", flex: 1, lineHeight: 20 },
-  feedbackCard: { backgroundColor: "white", borderRadius: 10, padding: 12, marginBottom: 8, borderLeftWidth: 3, elevation: 1 },
-  feedbackHeader:{ flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  feedbackQ:    { fontSize: 13, color: "#333", flex: 1, lineHeight: 18 },
-  feedbackCorrect:{ fontSize: 12, color: "#22c55e", marginTop: 4, marginLeft: 24 },
-  feedbackTopic:  { fontSize: 11, color: "#999", marginTop: 2, marginLeft: 24 },
+  // ===== Layout =====
+  container: {
+    flex: 1,
+  },
+
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  section: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+
+  // ===== Header =====
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1f2937",
+    marginHorizontal: 10,
+  },
+
+  quizFromFileBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: PRIMARY + "15",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ===== Hero =====
+  hero: {
+    backgroundColor: "white",
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    alignItems: "center",
+    marginBottom: 12,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+
+  heroIconBox: {
+    width: 84,
+    height: 84,
+    borderRadius: 24,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+
+  typeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  typeBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  courseTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+    textAlign: "center",
+    marginTop: 6,
+    marginBottom: 6,
+  },
+
+  courseSubject: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 14,
+  },
+
+  courseDescription: {
+    fontSize: 14,
+    color: "#4b5563",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+
+  // ===== Entry Quiz Banner =====
+  entryQuizBanner: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+  },
+
+  entryQuizBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+
+  entryQuizIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  entryQuizTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  entryQuizSub: {
+    fontSize: 12,
+    marginTop: 3,
+  },
+
+  entryResultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 18,
+    borderWidth: 1.5,
+  },
+
+  entryResultTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  entryResultSub: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 3,
+  },
+
+  // ===== Progress =====
+  progressCard: {
+    backgroundColor: "white",
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 20,
+    padding: 18,
+  },
+
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  progressTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  progressPercent: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+
+  progressBarBg: {
+    height: 10,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+
+  progressBarFill: {
+    height: 10,
+    backgroundColor: PRIMARY,
+    borderRadius: 999,
+  },
+
+  progressStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+
+  progressStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  progressStatText: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+
+  // ===== Upload Banner =====
+  uploadBanner: {
+    backgroundColor: PRIMARY + "12",
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: PRIMARY + "25",
+  },
+
+  uploadBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+
+  uploadBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  uploadBannerSubtitle: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+
+  // ===== Tabs =====
+  tabs: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 18,
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 4,
+  },
+
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  tabActive: {
+    backgroundColor: PRIMARY,
+  },
+
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#9ca3af",
+  },
+
+  tabTextActive: {
+    color: "white",
+  },
+
+  // ===== Chapters =====
+  connector: {
+    width: 2,
+    height: 14,
+    marginLeft: 30,
+    marginVertical: -3,
+    zIndex: 0,
+  },
+
+  chapterCard: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    zIndex: 1,
+  },
+
+  chapterCardDone: {
+    borderLeftWidth: 4,
+    borderLeftColor: PRIMARY,
+  },
+
+  stepCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6b7280",
+  },
+
+  chapterInfo: {
+    flex: 1,
+  },
+
+  chapterTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+
+  chapterTitleLocked: {
+    color: "#9ca3af",
+  },
+
+  chapterMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+
+  chapterDuration: {
+    fontSize: 12,
+    color: "#9ca3af",
+  },
+
+  assignmentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+
+  assignmentBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
+  adaptedBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+
+  adaptedBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+
+  chapterRight: {
+    alignItems: "flex-end",
+  },
+
+  doneBadge: {
+    backgroundColor: PRIMARY + "20",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+
+  doneBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+
+  // ===== Quiz Section =====
+  passingGradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fff7ed",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+  },
+
+  passingGradeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#ea580c",
+  },
+
+  quizCard: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  quizIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+
+  quizInfo: {
+    flex: 1,
+  },
+
+  quizTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 3,
+  },
+
+  quizScore: {
+    fontSize: 12,
+    color: "#4b5563",
+    marginTop: 3,
+  },
+
+  quizLocked: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 3,
+  },
+
+  quizRight: {
+    alignItems: "flex-end",
+  },
+
+  bonusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 4,
+  },
+
+  bonusBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#8b5cf6",
+  },
+
+  // ===== Summary =====
+  summaryRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 24,
+  },
+
+  summaryCard: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+
+  summaryNumber: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+
+  summaryLabel: {
+    fontSize: 11,
+    color: "#6b7280",
+    textAlign: "center",
+  },
+
+  breakdownTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+  },
+
+  breakdownCard: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+
+  breakdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+
+  breakdownDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  breakdownTitle2: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#111827",
+  },
+
+  breakdownRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  quizResultBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  quizResultText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  // ===== Modal =====
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+
+  modalHeaderTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginHorizontal: 10,
+  },
+
+  // ===== Chapter Content =====
+  chapterContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+
+  chapterDiffBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+  },
+
+  chapterDiffText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  chapterContentTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 16,
+  },
+
+  chapterContentBody: {
+    fontSize: 15,
+    color: "#374151",
+    lineHeight: 28,
+  },
+
+  completeBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 26,
+  },
+
+  completeBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "white",
+  },
+
+  completedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: PRIMARY + "15",
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 18,
+  },
+
+  completedBannerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: PRIMARY,
+  },
+
+  // ===== Quiz =====
+  progressBg: {
+    height: 6,
+    backgroundColor: "#e5e7eb",
+  },
+
+  progressFill: {
+    height: 6,
+    backgroundColor: PRIMARY,
+  },
+
+  quizMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+
+  quizMetaText: {
+    fontSize: 13,
+    color: "#9ca3af",
+  },
+
+  passingBadge: {
+    backgroundColor: "#fff7ed",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+
+  passingBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#ea580c",
+  },
+
+  questionTopic: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8b5cf6",
+    marginBottom: 10,
+  },
+
+  questionText: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+    lineHeight: 30,
+    marginBottom: 24,
+  },
+
+  options: {
+    gap: 12,
+  },
+
+  optionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+  },
+
+  optionLetter: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  optionLetterText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#4b5563",
+  },
+
+  optionText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#111827",
+    lineHeight: 22,
+  },
+
+  // ===== Reports =====
+  reportScoreCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 2,
+  },
+
+  reportScore: {
+    fontSize: 52,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+
+  reportStatus: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4b5563",
+    marginTop: 6,
+  },
+
+  reportSummary: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    marginTop: 14,
+    lineHeight: 22,
+  },
+
+  reportSection: {
+    marginBottom: 18,
+  },
+
+  reportSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 10,
+  },
+
+  reportItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 10,
+  },
+
+  reportItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 21,
+  },
+
+  // ===== Feedback =====
+  feedbackCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+  },
+
+  feedbackHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+
+  feedbackQ: {
+    flex: 1,
+    fontSize: 13,
+    color: "#111827",
+    lineHeight: 20,
+  },
+
+  feedbackCorrect: {
+    fontSize: 12,
+    color: "#22c55e",
+    marginTop: 5,
+    marginLeft: 24,
+  },
+
+  feedbackTopic: {
+    fontSize: 11,
+    color: "#9ca3af",
+    marginTop: 3,
+    marginLeft: 24,
+  },
+
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#9ca3af",
+  },
 });
